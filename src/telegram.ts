@@ -15,81 +15,57 @@ export class TelegramClient {
   }
 }
 
-export async function parseMessage(text: string, nimApiKey?: string): Promise<{ activity: string; durationHours: number }> {
-  if (nimApiKey) {
-    try {
-      const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${nimApiKey}`
-        },
-        body: JSON.stringify({
-          model: 'meta/llama-3.1-8b-instruct',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an AI that extracts the activity name and the duration in hours from an Arabic text. Reply strictly with a JSON object in this format: {"activity": "string", "durationHours": number}. Do not add any extra text, explanation, or markdown formatting like ```json.'
-            },
-            {
-              role: 'user',
-              content: text
-            }
-          ],
-          temperature: 0.1,
-          max_tokens: 150
-        })
-      });
+export async function parseWithLLM(history: {role: string, content: string}[], nimApiKey: string): Promise<{ action: string; reply_text: string; activity?: string; duration_hours?: number }> {
+  try {
+    const messages = [
+      {
+        role: 'system',
+        content: `أنت مساعد شخصي ذكي لتتبع الوقت عبر تيليجرام.
+هدفك هو مساعدة المستخدم في تسجيل نشاطاته بدقة، وفهم سياق الحديث بناءً على الرسائل السابقة.
+قواعد هامة جداً:
+1. إذا كانت رسالة المستخدم مجرد تحية (مثل مرحبا) أو سؤال عام، قم بالرد عليها بشكل طبيعي. (action: "reply")
+2. إذا ذكر المستخدم نشاطاً لكنه غير واضح أو لم يذكر تفاصيل (مثل "ذاكرت" أو "نعم")، اسأله أسئلة تفصيلية لتحديد النشاط بوضوح، أو اسأله عن المدة. (action: "reply")
+3. إذا سألتَ أنت مسبقاً "ماذا فعلت في آخر ساعتين؟" وأجاب المستخدم بنشاط، افترض تلقائياً أن المدة هي ساعتين (2) ما لم يحدد هو خلاف ذلك.
+4. إذا استنتجت أو فهمت بوضوح "اسم النشاط" و"المدة الزمنية"، **يجب** أن تطلب تأكيداً نهائياً من المستخدم قبل التسجيل، مثل: "هل تريدني أن أؤكد تسجيل نشاط [النشاط] لمدة [المدة] ساعة؟". (action: "reply")
+5. إذا وافق المستخدم (نعم، أكد، صحيح) على النشاط الذي طلبت منه تأكيده للتو، فقم بتسجيله فوراً. (action: "log")
 
-      if (response.ok) {
-        const data = (await response.json()) as any;
-        let content = data.choices[0]?.message?.content?.trim() || '';
-        // Clean up markdown just in case the model adds it despite instructions
-        content = content.replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(content);
-        if (parsed.activity && typeof parsed.durationHours === 'number') {
-          return { activity: parsed.activity, durationHours: parsed.durationHours };
-        }
-      } else {
-        console.error('NIM API Error:', await response.text());
-      }
-    } catch (e) {
-      console.error('Error calling NIM LLM:', e);
+يجب أن يكون ردك دائماً بصيغة JSON فقط، بدون أي نصوص إضافية، بالشكل التالي:
+{
+  "action": "reply" أو "log",
+  "reply_text": "الرسالة التي سترسلها للمستخدم (مطلوب دائماً)",
+  "activity": "اسم النشاط في حال action هو log",
+  "duration_hours": 2 (المدة بالساعات كرقم في حال action هو log)
+}`
+      },
+      ...history
+    ];
+
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${nimApiKey}`
+      },
+      body: JSON.stringify({
+        model: 'meta/llama-3.1-8b-instruct',
+        messages: messages,
+        temperature: 0.1,
+        max_tokens: 250
+      })
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as any;
+      let content = data.choices[0]?.message?.content?.trim() || '';
+      content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(content);
+      return parsed;
+    } else {
+      console.error('NIM API Error:', await response.text());
+      return { action: 'reply', reply_text: 'عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.' };
     }
+  } catch (e) {
+    console.error('Error calling NIM LLM:', e);
+    return { action: 'reply', reply_text: 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.' };
   }
-
-  // Placeholder parser as requested (can be replaced with LLM API)
-  const arabicNumbers = [
-    { word: 'ساعتين', val: 2 },
-    { word: 'ساعة واحدة', val: 1 },
-    { word: 'ساعة', val: 1 },
-    { word: 'نص ساعة', val: 0.5 },
-    { word: 'نصف ساعة', val: 0.5 },
-    { word: 'نص', val: 0.5 },
-    { word: 'نصف', val: 0.5 },
-    { word: 'ربع', val: 0.25 },
-  ];
-  let durationHours = 0;
-  let activity = text;
-
-  // Try extracting decimal/integers first
-  const digitMatch = text.match(/([\d\.]+)/);
-  if (digitMatch) {
-    durationHours = parseFloat(digitMatch[1]);
-    activity = text.replace(digitMatch[0], '').replace(/(ساعة|ساعات|لمدة)/g, '').trim();
-  } else {
-    // Try word matching
-    for (const num of arabicNumbers) {
-      if (text.includes(num.word)) {
-        durationHours = num.val;
-        activity = text.replace(num.word, '').trim();
-        break;
-      }
-    }
-  }
-
-  if (durationHours === 0) durationHours = 1; // Default fallback
-  if (!activity) activity = "نشاط عام";
-
-  return { activity, durationHours };
 }

@@ -10,4 +10,8 @@ main = "src/index.ts"
 # SUPABASE_URL
 # SUPABASE_ANON_KEY
 # TELEGRAM_BOT_TOKEN
-# NIM_API_KEY
+# AI_API_KEY
+# TELEGRAM_CHAT_ID
+
+[triggers]
+crons = ["0 */2 * * *"]

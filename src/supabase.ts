@@ -35,4 +35,28 @@ export class SupabaseClient {
     }
     return res.json();
   }
+
+  async saveMessage(chatId: number, role: string, content: string) {
+    const res = await fetch(`${this.url}/rest/v1/chat_history`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ chat_id: chatId, role, content })
+    });
+    if (!res.ok) {
+      console.error(`Supabase Error (saveMessage): ${await res.text()}`);
+    }
+  }
+
+  async getHistory(chatId: number, limit: number = 10): Promise<{role: string, content: string}[]> {
+    const res = await fetch(`${this.url}/rest/v1/chat_history?chat_id=eq.${chatId}&select=role,content&order=created_at.desc&limit=${limit}`, {
+      method: 'GET',
+      headers: this.headers
+    });
+    if (!res.ok) {
+      console.error(`Supabase Error (getHistory): ${await res.text()}`);
+      return [];
+    }
+    const data = await res.json() as {role: string, content: string}[];
+    return data.reverse(); // Return in chronological order
+  }
 }

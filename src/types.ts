@@ -3,6 +3,7 @@ export type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
   AI_API_KEY: string;
+  TELEGRAM_CHAT_ID: string;
 };
 
 export interface TimeLog {
