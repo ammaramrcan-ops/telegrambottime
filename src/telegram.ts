@@ -15,7 +15,7 @@ export class TelegramClient {
   }
 }
 
-export async function parseWithLLM(history: {role: string, content: string}[], nimApiKey: string): Promise<{ action: string; reply_text: string; activity?: string; duration_hours?: number }> {
+export async function parseWithLLM(history: {role: string, content: string}[], nimApiKey: string, todayContext: string = ''): Promise<{ action: string; reply_text: string; activity?: string; duration_hours?: number }> {
   try {
     const messages = [
       {
@@ -28,6 +28,7 @@ export async function parseWithLLM(history: {role: string, content: string}[], n
 3. إذا سألتَ أنت مسبقاً "ماذا فعلت في آخر ساعتين؟" وأجاب المستخدم بنشاط، افترض تلقائياً أن المدة هي ساعتين (2) ما لم يحدد هو خلاف ذلك.
 4. إذا استنتجت أو فهمت بوضوح "اسم النشاط" و"المدة الزمنية"، **يجب** أن تطلب تأكيداً نهائياً من المستخدم قبل التسجيل، مثل: "هل تريدني أن أؤكد تسجيل نشاط [النشاط] لمدة [المدة] ساعة؟". (action: "reply")
 5. إذا وافق المستخدم (نعم، أكد، صحيح) على النشاط الذي طلبت منه تأكيده للتو، فقم بتسجيله فوراً. (action: "log")
+6. ${todayContext}
 
 يجب أن يكون ردك دائماً بصيغة JSON فقط، بدون أي نصوص إضافية، بالشكل التالي:
 {

@@ -57,8 +57,30 @@ app.post('/webhook', async (c) => {
     // 2. Fetch recent chat history for context
     const history = await supabase.getHistory(chatId, 15);
 
-    // 3. Pass history to LLM to parse and decide next action
-    const result = await parseWithLLM(history, c.env.AI_API_KEY);
+    // Calculate today's context (Blind Spots)
+    const todayLogs = await supabase.getTodayLogs();
+    let totalLoggedHours = 0;
+    let logsSummary = "";
+    todayLogs.forEach(l => {
+      totalLoggedHours += Number(l.duration_hours);
+      logsSummary += `- ${l.activity}: ${l.duration_hours} ساعات\n`;
+    });
+
+    const currentLocalHour = (new Date().getUTCHours() + 3) % 24;
+    let elapsedSinceWakeup = currentLocalHour - 6; // Assuming day starts at 6 AM
+    if (elapsedSinceWakeup < 0) elapsedSinceWakeup += 24;
+    const unloggedHours = Math.max(0, elapsedSinceWakeup - totalLoggedHours);
+
+    const todayContext = `معلومات اليوم الحالي (للاستعانة بها إذا سألك المستخدم عن النقاط العمياء أو ماذا فعل اليوم):
+- إجمالي الساعات المسجلة اليوم: ${totalLoggedHours} ساعة.
+- تفاصيل الأنشطة اليوم:
+${logsSummary || "لا يوجد أنشطة مسجلة اليوم."}
+- الساعات المنقضية منذ بداية اليوم (6 صباحاً): ${elapsedSinceWakeup} ساعة.
+- الساعات غير المسجلة (النقاط العمياء): ${unloggedHours} ساعة.
+إذا طلب المستخدم "النقاط العمياء"، أخبره بصيغة ودية ومحفزة كم ساعة لم يتم تسجيلها، واذكر له الأنشطة التي سجلها، وشجعه على تذكر وتسجيل الساعات المفقودة. (action: "reply")`;
+
+    // 3. Pass history and context to LLM to parse and decide next action
+    const result = await parseWithLLM(history, c.env.AI_API_KEY, todayContext);
 
     // 4. Save the LLM's chosen reply to history
     await supabase.saveMessage(chatId, 'assistant', result.reply_text);

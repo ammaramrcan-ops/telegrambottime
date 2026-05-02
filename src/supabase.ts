@@ -36,6 +36,26 @@ export class SupabaseClient {
     return res.json();
   }
 
+  async getTodayLogs(): Promise<TimeLog[]> {
+    const now = new Date();
+    // Local time in UTC+3
+    const localTime = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+    // Start of local day
+    localTime.setUTCHours(0, 0, 0, 0);
+    // Convert back to UTC for Supabase query
+    const utcStartOfToday = new Date(localTime.getTime() - 3 * 60 * 60 * 1000);
+
+    const res = await fetch(`${this.url}/rest/v1/time_logs?created_at=gte.${utcStartOfToday.toISOString()}&select=*`, {
+      method: 'GET',
+      headers: this.headers
+    });
+    if (!res.ok) {
+      console.error(`Supabase Error (getTodayLogs): ${await res.text()}`);
+      return [];
+    }
+    return res.json();
+  }
+
   async saveMessage(chatId: number, role: string, content: string) {
     const res = await fetch(`${this.url}/rest/v1/chat_history`, {
       method: 'POST',
