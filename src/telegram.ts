@@ -3,12 +3,14 @@
 export class TelegramClient {
   constructor(private token: string) {}
 
-  async sendMessage(chatId: number, text: string) {
+  async sendMessage(chatId: number, text: string, parseMode: string = '') {
     const url = `https://api.telegram.org/bot${this.token}/sendMessage`;
+    const body: Record<string, unknown> = { chat_id: chatId, text };
+    if (parseMode) body['parse_mode'] = parseMode;
     await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text }),
+      body: JSON.stringify(body),
     });
   }
 }
@@ -26,13 +28,28 @@ export interface LLMResult {
   idea_category?: 'مفيدة' | 'مضيعة للوقت';
 }
 
+/**
+ * Extracts the first valid JSON object from an LLM response string.
+ * Handles cases where the model wraps the JSON in markdown code blocks.
+ */
+function extractJson(raw: string): string {
+  // Remove markdown fences
+  let cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+  // Find the first '{' and last '}' to extract the JSON object
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    return cleaned.slice(start, end + 1);
+  }
+  return cleaned;
+}
+
 export async function parseWithLLM(
   history: { role: string; content: string }[],
   nimApiKey: string,
   systemContext: string = ''
 ): Promise<LLMResult> {
-  try {
-    const systemPrompt = `أنت مساعد شخصي ذكي لتتبع الوقت والإنتاجية عبر تيليجرام.
+  const systemPrompt = `أنت مساعد شخصي ذكي لتتبع الوقت والإنتاجية عبر تيليجرام.
 هدفك فهم نية المستخدم بدقة من خلال الرسائل السابقة، وتحديد الإجراء المناسب.
 
 ━━━ الإجراءات المتاحة ━━━
@@ -42,77 +59,88 @@ export async function parseWithLLM(
 
 2. action: "log"
    → عندما يؤكد المستخدم تسجيل نشاط بعد أن طلبت التأكيد منه (مثل "نعم" أو "أكد").
-   → يتطلب: activity (اسم النشاط) + duration_hours (رقم).
+   → يتطلب: activity (اسم النشاط) + duration_hours (رقم عشري).
    → قاعدة مهمة: لا تسجل مباشرة بدون تأكيد. اطلب تأكيداً أولاً (action: "reply").
 
 3. action: "start_timer"
    → عندما يخبرك المستخدم أنه ذاهب لنشاط مباشر: حمام / أكل / صلاة.
    → يتطلب: timer_type = "حمام" أو "أكل" أو "صلاة"
-   → reply_text يكون تشجيعياً مثل: "حسناً، سأبدأ في قياس وقت الصلاة الآن ⏱️"
 
 4. action: "stop_timer"
-   → عندما يخبرك المستخدم أنه انتهى من النشاط (من حمام أو أكل أو صلاة).
-   → إذا لم يحدد من ماذا انتهى، استنتج من السياق (المؤقت النشط الموضح أدناه).
-   → إذا لم يكن هناك سياق كافٍ، اسأله. (رجوع لـ action: "reply")
-   → timer_type يكون الاسم العربي: "حمام" أو "أكل" أو "صلاة"
+   → عندما يخبرك المستخدم أنه انتهى من النشاط.
+   → استنتج timer_type من السياق (المؤقت النشط).
+   → timer_type: "حمام" أو "أكل" أو "صلاة"
 
 5. action: "save_idea"
-   → عندما يذكر المستخدم فكرة (مثل "جاءت لي فكرة..." أو "لدي فكرة...").
-   → يتطلب: idea_text (نص الفكرة) + idea_category = "مفيدة" أو "مضيعة للوقت"
-   → قيّم الفكرة: هل هي ذات قيمة وإنتاجية؟ أم تشتيت؟ واختر التصنيف المناسب.
-   → reply_text يعلق على الفكرة باختصار.
+   → عندما يذكر المستخدم فكرة.
+   → يتطلب: idea_text + idea_category = "مفيدة" أو "مضيعة للوقت"
 
 6. action: "day_summary"
-   → فقط إذا طلب المستخدم صراحةً ملخص يومه (مثل "ملخص يومي", "ماذا فعلت اليوم؟", "تقرير اليوم").
+   → فقط إذا طلب المستخدم صراحةً ملخص يومه.
 
 ━━━ السياق الحالي ━━━
 ${systemContext}
 
-━━━ قواعد عامة ━━━
+━━━ قواعد صارمة ━━━
 - ردودك دائماً بالعربية.
 - لا تهلوس أو تخترع معلومات.
-- ردك يجب أن يكون JSON فقط، بدون أي نصوص إضافية أو markdown.
+- أرجع JSON فقط، بدون أي نص خارج الـ JSON. لا markdown. لا شرح.
 
 الشكل المطلوب:
-{
-  "action": "...",
-  "reply_text": "...",
-  "activity": "...",
-  "duration_hours": 0,
-  "timer_type": "...",
-  "idea_text": "...",
-  "idea_category": "..."
-}`;
+{"action":"...","reply_text":"...","activity":"...","duration_hours":0,"timer_type":"...","idea_text":"...","idea_category":"..."}`;
 
-    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${nimApiKey}`
-      },
-      body: JSON.stringify({
-        model: 'meta/llama-3.1-8b-instruct',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...history
-        ],
-        temperature: 0.1,
-        max_tokens: 350
-      })
-    });
+  try {
+    // Use AbortController for a strict 25-second timeout (Cloudflare Workers limit is 30s)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+    let response: Response;
+    try {
+      response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${nimApiKey}`
+        },
+        body: JSON.stringify({
+          // gemma-3-27b-it is significantly faster than llama-3.1-8b-instruct on NIM
+          model: 'google/gemma-3-27b-it',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...history
+          ],
+          temperature: 0.1,
+          max_tokens: 300,
+          stream: false
+        }),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (response.ok) {
       const data = (await response.json()) as any;
-      let content = data.choices[0]?.message?.content?.trim() || '';
-      content = content.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(content) as LLMResult;
-      return parsed;
+      const rawContent = data.choices?.[0]?.message?.content?.trim() || '';
+      const jsonStr = extractJson(rawContent);
+      try {
+        const parsed = JSON.parse(jsonStr) as LLMResult;
+        return parsed;
+      } catch {
+        console.error('JSON parse error. Raw:', rawContent);
+        return { action: 'reply', reply_text: 'عذراً، حدث خطأ في معالجة الرد. حاول مرة أخرى.' };
+      }
     } else {
-      console.error('NIM API Error:', await response.text());
-      return { action: 'reply', reply_text: 'عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.' };
+      const errText = await response.text();
+      console.error('NIM API Error:', response.status, errText);
+      return { action: 'reply', reply_text: `⚠️ خطأ في الاتصال بالذكاء الاصطناعي (${response.status}). حاول مرة أخرى.` };
     }
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.name === 'AbortError') {
+      console.error('LLM request timed out after 25s');
+      return { action: 'reply', reply_text: '⏱️ انتهت مهلة الاتصال بالذكاء الاصطناعي. حاول مرة أخرى.' };
+    }
     console.error('Error calling NIM LLM:', e);
-    return { action: 'reply', reply_text: 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.' };
+    return { action: 'reply', reply_text: '⚠️ حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.' };
   }
 }

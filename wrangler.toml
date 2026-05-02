@@ -4,7 +4,6 @@ main = "src/index.ts"
 
 # Set environment variables here (non-sensitive)
 # [vars]
-# You can add public variables here
 
 # Secrets (Add via `npx wrangler secret put <NAME>`)
 # SUPABASE_URL
@@ -14,4 +13,5 @@ main = "src/index.ts"
 # TELEGRAM_CHAT_ID
 
 [triggers]
-crons = ["0 */2 * * *"]
+# Every 30 minutes — handles task reminders, 2-hour check-ins, and midnight archive
+crons = ["0,30 * * * *"]
