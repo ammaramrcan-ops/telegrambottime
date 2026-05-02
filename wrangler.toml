@@ -1,0 +1,13 @@
+name = "telegram-time-tracker"
+compatibility_date = "2024-04-05"
+main = "src/index.ts"
+
+# Set environment variables here (non-sensitive)
+# [vars]
+# You can add public variables here
+
+# Secrets (Add via `npx wrangler secret put <NAME>`)
+# SUPABASE_URL
+# SUPABASE_ANON_KEY
+# TELEGRAM_BOT_TOKEN
+# NIM_API_KEY
