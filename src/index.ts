@@ -48,8 +48,8 @@ app.post('/webhook', async (c) => {
     const chatId = body.message.chat.id;
     const text = body.message.text;
 
-    // 1. Parse the message to extract activity and duration
-    const { activity, durationHours } = parseMessage(text);
+    // 1. Parse the message to extract activity and duration using NIM API if configured
+    const { activity, durationHours } = await parseMessage(text, c.env.NIM_API_KEY);
 
     // 2. Save to Supabase
     if (c.env.SUPABASE_URL && c.env.SUPABASE_ANON_KEY) {
