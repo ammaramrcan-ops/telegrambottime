@@ -3,10 +3,12 @@
 export class TelegramClient {
   constructor(private token: string) {}
 
-  async sendMessage(chatId: number, text: string, parseMode: string = '') {
+  async sendMessage(chatId: number, text: string, parseMode: string = '', replyMarkup: any = null) {
     const url = `https://api.telegram.org/bot${this.token}/sendMessage`;
     const body: Record<string, unknown> = { chat_id: chatId, text };
     if (parseMode) body['parse_mode'] = parseMode;
+    if (replyMarkup) body['reply_markup'] = replyMarkup;
+    
     await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

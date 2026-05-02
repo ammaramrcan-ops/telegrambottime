@@ -82,6 +82,14 @@ export class SupabaseClient {
     return res.json();
   }
 
+  async deleteLog(logId: number): Promise<void> {
+    const res = await fetch(`${this.url}/rest/v1/time_logs?id=eq.${logId}`, {
+      method: 'DELETE',
+      headers: this.headers
+    });
+    if (!res.ok) console.error(`Supabase Error (deleteLog): ${await res.text()}`);
+  }
+
   // ─── Daily Archive ───────────────────────────────────────────────────
   /** Archives all today's logs to daily_archive and deletes them from time_logs */
   async archiveAndResetDay(): Promise<number> {

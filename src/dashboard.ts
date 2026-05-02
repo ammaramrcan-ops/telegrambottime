@@ -92,8 +92,8 @@ tbody tr:hover{background:rgba(255,255,255,.04);}
       <h2>📝 سجل الأنشطة</h2>
       <div style="overflow-x:auto">
         <table>
-          <thead><tr><th>التوقيت</th><th>النشاط</th><th>المدة (س)</th></tr></thead>
-          <tbody id="logsBody"><tr><td colspan="3" class="empty">جاري التحميل...</td></tr></tbody>
+          <thead><tr><th>التوقيت</th><th>النشاط</th><th>المدة (س)</th><th>إجراء</th></tr></thead>
+          <tbody id="logsBody"><tr><td colspan="4" class="empty">جاري التحميل...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -169,12 +169,13 @@ async function loadLogs(){
   const res = await fetch('/api/logs');
   const logs = await res.json();
   const tbody = document.getElementById('logsBody');
-  if(!logs||logs.length===0){tbody.innerHTML='<tr><td colspan="3" class="empty">لا يوجد أنشطة مسجلة</td></tr>';return;}
+  if(!logs||logs.length===0){tbody.innerHTML='<tr><td colspan="4" class="empty">لا يوجد أنشطة مسجلة</td></tr>';return;}
   tbody.innerHTML = logs.map(l=>\`
     <tr>
       <td style="color:#cbd5e1;font-size:.8rem" dir="ltr">\${fmtDate(l.created_at)}</td>
       <td><span class="chip chip-blue">\${l.activity}</span></td>
       <td style="color:var(--green);font-weight:700">\${Number(l.duration_hours).toFixed(2)}</td>
+      <td><button class="btn-sm" onclick="delLogEntry(\${l.id})" title="حذف">🗑️</button></td>
     </tr>\`).join('');
 
   // Chart
@@ -232,6 +233,12 @@ function renderPeriods(){
       </div>
     </div>\`;
   }).join('');
+}
+
+async function delLogEntry(id){
+  if(!confirm('حذف هذا النشاط من السجل؟')) return;
+  await fetch('/api/logs/'+id,{method:'DELETE'});
+  await loadLogs();
 }
 
 async function addTask(periodKey){
