@@ -105,7 +105,7 @@ ${systemContext}
           'Authorization': `Bearer ${nimApiKey}`
         },
         body: JSON.stringify({
-          model: 'google/gemma-3-27b-it',
+          model: 'meta/llama-3.1-70b-instruct',
           messages: [
             { role: 'system', content: systemPrompt },
             ...history
@@ -129,12 +129,16 @@ ${systemContext}
         return parsed;
       } catch {
         console.error('JSON parse error. Raw:', rawContent);
-        return { action: 'reply', reply_text: 'عذراً، حدث خطأ في معالجة الرد. حاول مرة أخرى.' };
+        return { action: 'reply', reply_text: `❌ خطأ في معالجة JSON الاستجابة. المحتوى الخام: ${rawContent.slice(0, 100)}` };
       }
     } else {
       const errText = await response.text();
       console.error('NIM API Error:', response.status, errText);
-      return { action: 'reply', reply_text: `⚠️ خطأ في الاتصال بالذكاء الاصطناعي (${response.status}). حاول مرة أخرى.` };
+      // Return the actual error message for debugging
+      return { 
+        action: 'reply', 
+        reply_text: `⚠️ خطأ من NVIDIA (${response.status}):\n\`\`\`json\n${errText.slice(0, 300)}\n\`\`\`` 
+      };
     }
   } catch (e: any) {
     if (e?.name === 'AbortError') {
