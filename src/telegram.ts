@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
+
 export class TelegramClient {
   constructor(private token: string) {}
 
@@ -7,39 +8,81 @@ export class TelegramClient {
     await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: text,
-      }),
+      body: JSON.stringify({ chat_id: chatId, text }),
     });
   }
 }
 
-export async function parseWithLLM(history: {role: string, content: string}[], nimApiKey: string, todayContext: string = ''): Promise<{ action: string; reply_text: string; activity?: string; duration_hours?: number }> {
-  try {
-    const messages = [
-      {
-        role: 'system',
-        content: `أنت مساعد شخصي ذكي لتتبع الوقت عبر تيليجرام.
-هدفك هو مساعدة المستخدم في تسجيل نشاطاته بدقة، وفهم سياق الحديث بناءً على الرسائل السابقة.
-قواعد هامة جداً:
-1. إذا كانت رسالة المستخدم مجرد تحية (مثل مرحبا) أو سؤال عام، قم بالرد عليها بشكل طبيعي. (action: "reply")
-2. إذا ذكر المستخدم نشاطاً لكنه غير واضح أو لم يذكر تفاصيل (مثل "ذاكرت" أو "نعم")، اسأله أسئلة تفصيلية لتحديد النشاط بوضوح، أو اسأله عن المدة. (action: "reply")
-3. إذا سألتَ أنت مسبقاً "ماذا فعلت في آخر ساعتين؟" وأجاب المستخدم بنشاط، افترض تلقائياً أن المدة هي ساعتين (2) ما لم يحدد هو خلاف ذلك.
-4. إذا استنتجت أو فهمت بوضوح "اسم النشاط" و"المدة الزمنية"، **يجب** أن تطلب تأكيداً نهائياً من المستخدم قبل التسجيل، مثل: "هل تريدني أن أؤكد تسجيل نشاط [النشاط] لمدة [المدة] ساعة؟". (action: "reply")
-5. إذا وافق المستخدم (نعم، أكد، صحيح) على النشاط الذي طلبت منه تأكيده للتو، فقم بتسجيله فوراً. (action: "log")
-6. ${todayContext}
+export interface LLMResult {
+  action: 'reply' | 'log' | 'start_timer' | 'stop_timer' | 'save_idea' | 'day_summary';
+  reply_text: string;
+  // For "log"
+  activity?: string;
+  duration_hours?: number;
+  // For "start_timer" / "stop_timer"
+  timer_type?: string; // "حمام" | "أكل" | "صلاة"
+  // For "save_idea"
+  idea_text?: string;
+  idea_category?: 'مفيدة' | 'مضيعة للوقت';
+}
 
-يجب أن يكون ردك دائماً بصيغة JSON فقط، بدون أي نصوص إضافية، بالشكل التالي:
+export async function parseWithLLM(
+  history: { role: string; content: string }[],
+  nimApiKey: string,
+  systemContext: string = ''
+): Promise<LLMResult> {
+  try {
+    const systemPrompt = `أنت مساعد شخصي ذكي لتتبع الوقت والإنتاجية عبر تيليجرام.
+هدفك فهم نية المستخدم بدقة من خلال الرسائل السابقة، وتحديد الإجراء المناسب.
+
+━━━ الإجراءات المتاحة ━━━
+
+1. action: "reply"
+   → للتحيات والأسئلة العامة والحوار العادي أو إذا احتجت لسؤال المستخدم لمزيد من التفاصيل.
+
+2. action: "log"
+   → عندما يؤكد المستخدم تسجيل نشاط بعد أن طلبت التأكيد منه (مثل "نعم" أو "أكد").
+   → يتطلب: activity (اسم النشاط) + duration_hours (رقم).
+   → قاعدة مهمة: لا تسجل مباشرة بدون تأكيد. اطلب تأكيداً أولاً (action: "reply").
+
+3. action: "start_timer"
+   → عندما يخبرك المستخدم أنه ذاهب لنشاط مباشر: حمام / أكل / صلاة.
+   → يتطلب: timer_type = "حمام" أو "أكل" أو "صلاة"
+   → reply_text يكون تشجيعياً مثل: "حسناً، سأبدأ في قياس وقت الصلاة الآن ⏱️"
+
+4. action: "stop_timer"
+   → عندما يخبرك المستخدم أنه انتهى من النشاط (من حمام أو أكل أو صلاة).
+   → إذا لم يحدد من ماذا انتهى، استنتج من السياق (المؤقت النشط الموضح أدناه).
+   → إذا لم يكن هناك سياق كافٍ، اسأله. (رجوع لـ action: "reply")
+   → timer_type يكون الاسم العربي: "حمام" أو "أكل" أو "صلاة"
+
+5. action: "save_idea"
+   → عندما يذكر المستخدم فكرة (مثل "جاءت لي فكرة..." أو "لدي فكرة...").
+   → يتطلب: idea_text (نص الفكرة) + idea_category = "مفيدة" أو "مضيعة للوقت"
+   → قيّم الفكرة: هل هي ذات قيمة وإنتاجية؟ أم تشتيت؟ واختر التصنيف المناسب.
+   → reply_text يعلق على الفكرة باختصار.
+
+6. action: "day_summary"
+   → فقط إذا طلب المستخدم صراحةً ملخص يومه (مثل "ملخص يومي", "ماذا فعلت اليوم؟", "تقرير اليوم").
+
+━━━ السياق الحالي ━━━
+${systemContext}
+
+━━━ قواعد عامة ━━━
+- ردودك دائماً بالعربية.
+- لا تهلوس أو تخترع معلومات.
+- ردك يجب أن يكون JSON فقط، بدون أي نصوص إضافية أو markdown.
+
+الشكل المطلوب:
 {
-  "action": "reply" أو "log",
-  "reply_text": "الرسالة التي سترسلها للمستخدم (مطلوب دائماً)",
-  "activity": "اسم النشاط في حال action هو log",
-  "duration_hours": 2 (المدة بالساعات كرقم في حال action هو log)
-}`
-      },
-      ...history
-    ];
+  "action": "...",
+  "reply_text": "...",
+  "activity": "...",
+  "duration_hours": 0,
+  "timer_type": "...",
+  "idea_text": "...",
+  "idea_category": "..."
+}`;
 
     const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
       method: 'POST',
@@ -49,9 +92,12 @@ export async function parseWithLLM(history: {role: string, content: string}[], n
       },
       body: JSON.stringify({
         model: 'meta/llama-3.1-8b-instruct',
-        messages: messages,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...history
+        ],
         temperature: 0.1,
-        max_tokens: 250
+        max_tokens: 350
       })
     });
 
@@ -59,7 +105,7 @@ export async function parseWithLLM(history: {role: string, content: string}[], n
       const data = (await response.json()) as any;
       let content = data.choices[0]?.message?.content?.trim() || '';
       content = content.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(content);
+      const parsed = JSON.parse(content) as LLMResult;
       return parsed;
     } else {
       console.error('NIM API Error:', await response.text());

@@ -7,46 +7,38 @@ import { dashboardHtml } from './dashboard';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// Dashboard Route (serves the Arabic HTML)
-app.get('/', (c) => {
-  return c.html(dashboardHtml);
-});
+// ─── Pages ───────────────────────────────────────────────────────────────────
+app.get('/', (c) => c.html(dashboardHtml));
+app.get('/dashboard', (c) => c.html(dashboardHtml));
+app.get('/ping', (c) => c.json({ status: 'alive' }));
 
-app.get('/dashboard', (c) => {
-  return c.html(dashboardHtml);
-});
-
-// Health check endpoint
-app.get('/ping', (c) => {
-  return c.json({ status: 'alive' });
-});
-
-// API for logs (used by the dashboard Chart.js and Table)
+// ─── APIs ─────────────────────────────────────────────────────────────────────
 app.get('/api/logs', async (c) => {
-  if (!c.env.SUPABASE_URL || !c.env.SUPABASE_ANON_KEY) {
-    return c.json({ error: 'Supabase credentials not configured' }, 500);
-  }
   const supabase = new SupabaseClient(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY);
   try {
-    const logs = await supabase.getRecentLogs(50); // Get last 50 logs
-    return c.json(logs);
+    return c.json(await supabase.getRecentLogs(50));
   } catch (error) {
     return c.json({ error: (error as Error).message }, 500);
   }
 });
 
-// Telegram Webhook Handler
+app.get('/api/ideas', async (c) => {
+  const supabase = new SupabaseClient(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY);
+  try {
+    return c.json(await supabase.getRecentIdeas(30));
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 500);
+  }
+});
+
+// ─── Webhook ──────────────────────────────────────────────────────────────────
 app.post('/webhook', async (c) => {
   try {
     const body = await c.req.json();
-    
-    // Ignore updates that aren't messages
-    if (!body.message || !body.message.text) {
-      return c.json({ status: 'ignored' });
-    }
+    if (!body.message || !body.message.text) return c.json({ status: 'ignored' });
 
-    const chatId = body.message.chat.id;
-    const text = body.message.text;
+    const chatId: number = body.message.chat.id;
+    const text: string = body.message.text;
 
     const supabase = new SupabaseClient(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY);
     const telegram = new TelegramClient(c.env.TELEGRAM_BOT_TOKEN);
@@ -54,46 +46,96 @@ app.post('/webhook', async (c) => {
     // 1. Save user message to history
     await supabase.saveMessage(chatId, 'user', text);
 
-    // 2. Fetch recent chat history for context
-    const history = await supabase.getHistory(chatId, 15);
+    // 2. Build system context: today's data + active timer
+    const [todayLogs, activeTimer, todayIdeas] = await Promise.all([
+      supabase.getTodayLogs(),
+      supabase.getActiveTimer(chatId),
+      supabase.getTodayIdeas()
+    ]);
 
-    // Calculate today's context (Blind Spots)
-    const todayLogs = await supabase.getTodayLogs();
     let totalLoggedHours = 0;
-    let logsSummary = "";
+    let logsSummary = '';
     todayLogs.forEach(l => {
       totalLoggedHours += Number(l.duration_hours);
-      logsSummary += `- ${l.activity}: ${l.duration_hours} ساعات\n`;
+      logsSummary += `- ${l.activity}: ${l.duration_hours} ساعة\n`;
     });
 
     const currentLocalHour = (new Date().getUTCHours() + 3) % 24;
-    let elapsedSinceWakeup = currentLocalHour - 6; // Assuming day starts at 6 AM
-    if (elapsedSinceWakeup < 0) elapsedSinceWakeup += 24;
+    let elapsedSinceWakeup = currentLocalHour - 6;
+    if (elapsedSinceWakeup < 0) elapsedSinceWakeup = 0;
     const unloggedHours = Math.max(0, elapsedSinceWakeup - totalLoggedHours);
 
-    const todayContext = `معلومات اليوم الحالي (للاستعانة بها إذا سألك المستخدم عن النقاط العمياء أو ماذا فعل اليوم):
-- إجمالي الساعات المسجلة اليوم: ${totalLoggedHours} ساعة.
-- تفاصيل الأنشطة اليوم:
-${logsSummary || "لا يوجد أنشطة مسجلة اليوم."}
-- الساعات المنقضية منذ بداية اليوم (6 صباحاً): ${elapsedSinceWakeup} ساعة.
-- الساعات غير المسجلة (النقاط العمياء): ${unloggedHours} ساعة.
-إذا طلب المستخدم "النقاط العمياء"، أخبره بصيغة ودية ومحفزة كم ساعة لم يتم تسجيلها، واذكر له الأنشطة التي سجلها، وشجعه على تذكر وتسجيل الساعات المفقودة. (action: "reply")`;
+    const ideasSummary = todayIdeas.length > 0
+      ? todayIdeas.map(i => `- [${i.category}] ${i.content}`).join('\n')
+      : 'لا توجد أفكار مسجلة اليوم.';
 
-    // 3. Pass history and context to LLM to parse and decide next action
-    const result = await parseWithLLM(history, c.env.AI_API_KEY, todayContext);
+    const activeTimerContext = activeTimer
+      ? `⏱️ المؤقت النشط الآن: "${activeTimer.timer_type}" — بدأ الساعة ${new Date(activeTimer.started_at).toLocaleTimeString('ar-EG')}.`
+      : '⏱️ لا يوجد مؤقت نشط حالياً.';
 
-    // 4. Save the LLM's chosen reply to history
+    const systemContext = `
+${activeTimerContext}
+
+📊 إحصائيات اليوم:
+- الساعات المسجلة: ${totalLoggedHours} ساعة
+- الساعات المنقضية منذ الاستيقاظ (6 ص): ${elapsedSinceWakeup} ساعة
+- الساعات غير المسجلة (نقاط عمياء): ${unloggedHours} ساعة
+- الأنشطة:
+${logsSummary || '  لا يوجد أنشطة مسجلة اليوم.'}
+- أفكار اليوم:
+${ideasSummary}`;
+
+    // 3. Fetch chat history and call LLM
+    const history = await supabase.getHistory(chatId, 15);
+    const result = await parseWithLLM(history, c.env.AI_API_KEY, systemContext);
+
+    // 4. Save bot's reply to history & send it
     await supabase.saveMessage(chatId, 'assistant', result.reply_text);
-
-    // 5. Send the reply to the user via Telegram
     await telegram.sendMessage(chatId, result.reply_text);
 
-    // 6. If the LLM decided the action is "log" (user confirmed), save to time_logs table
-    if (result.action === 'log' && result.activity && result.duration_hours) {
-      await supabase.insertLog({
-        activity: result.activity,
-        duration_hours: result.duration_hours
-      });
+    // 5. Execute the action
+    switch (result.action) {
+
+      case 'log':
+        if (result.activity && result.duration_hours) {
+          await supabase.insertLog({ activity: result.activity, duration_hours: result.duration_hours });
+        }
+        break;
+
+      case 'start_timer':
+        if (result.timer_type) {
+          await supabase.startTimer(chatId, result.timer_type);
+        }
+        break;
+
+      case 'stop_timer': {
+        const stopped = await supabase.stopTimer(chatId);
+        if (stopped) {
+          const emoji = stopped.timerType === 'صلاة' ? '🕌' : stopped.timerType === 'أكل' ? '🍽️' : '🚿';
+          const durationMins = Math.round(stopped.durationHours * 60);
+          await supabase.insertLog({ activity: stopped.timerType, duration_hours: stopped.durationHours });
+          // Send an additional confirmation message with the logged duration
+          const logMsg = `${emoji} تم تسجيل "${stopped.timerType}" — المدة: ${durationMins} دقيقة (${stopped.durationHours} ساعة) ✅`;
+          await telegram.sendMessage(chatId, logMsg);
+        }
+        break;
+      }
+
+      case 'save_idea':
+        if (result.idea_text) {
+          await supabase.saveIdea({
+            chat_id: chatId,
+            content: result.idea_text,
+            category: result.idea_category || 'مفيدة'
+          });
+        }
+        break;
+
+      case 'day_summary': {
+        // The LLM already composed the summary in reply_text.
+        // We already sent it above, nothing else needed.
+        break;
+      }
     }
 
     return c.json({ status: 'ok' });
@@ -103,27 +145,22 @@ ${logsSummary || "لا يوجد أنشطة مسجلة اليوم."}
   }
 });
 
+// ─── Scheduled Cron (every 2 hours) ──────────────────────────────────────────
 export default {
   fetch: app.fetch,
-  scheduled: async (event: any, env: Bindings, ctx: any) => {
+  scheduled: async (_event: unknown, env: Bindings, ctx: ExecutionContext) => {
     ctx.waitUntil((async () => {
       try {
-        const utcHour = new Date().getUTCHours();
-        const localHour = (utcHour + 3) % 24; // Convert UTC to UTC+3 (Egypt/Saudi Arabia)
-        
-        // Don't send messages during sleep hours (from 11 PM / 23:00 to 6 AM / 06:00)
+        const localHour = (new Date().getUTCHours() + 3) % 24;
         if (localHour >= 23 || localHour < 6) {
-          console.log(`Skipping cron check. Local time is ${localHour}:00 (Sleep hours).`);
+          console.log(`Cron skipped — sleep hours (local: ${localHour}:00)`);
           return;
         }
-
         if (env.TELEGRAM_CHAT_ID) {
           const telegram = new TelegramClient(env.TELEGRAM_BOT_TOKEN);
           const supabase = new SupabaseClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
           const chatId = parseInt(env.TELEGRAM_CHAT_ID);
-          
-          const msg = "مرحباً! لقد مرت ساعتان. ماذا فعلت في آخر ساعتين؟";
-          
+          const msg = '⏰ مرحباً! لقد مرت ساعتان. ماذا فعلت في آخر ساعتين؟';
           await telegram.sendMessage(chatId, msg);
           await supabase.saveMessage(chatId, 'assistant', msg);
         }

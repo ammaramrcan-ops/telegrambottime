@@ -208,21 +208,72 @@ export const dashboardHtml = `
                     </table>
                 </div>
             </div>
+
+        </div>
+
+        <!-- Ideas Section (full width below grid) -->
+        <div class="card" style="margin-top: 2rem;">
+            <h2>💡 بنك الأفكار</h2>
+            <div class="table-container">
+                <table id="ideasTable">
+                    <thead>
+                        <tr>
+                            <th>التوقيت</th>
+                            <th>الفكرة</th>
+                            <th>التصنيف</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ideasBody">
+                        <tr><td colspan="3" class="loading">جاري تحميل الأفكار...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
         async function loadData() {
             try {
-                const response = await fetch('/api/logs');
-                const logs = await response.json();
+                const [logsRes, ideasRes] = await Promise.all([
+                    fetch('/api/logs'),
+                    fetch('/api/ideas')
+                ]);
+                const logs = await logsRes.json();
+                const ideas = await ideasRes.json();
                 
                 renderTable(logs);
                 renderChart(logs);
+                renderIdeas(ideas);
             } catch (error) {
-                console.error('Error fetching logs:', error);
-                document.getElementById('logsBody').innerHTML = '<tr><td colspan="3" style="text-align:center;color:#ef4444;">حدث خطأ في تحميل البيانات. يرجى التحقق من إعدادات Supabase.</td></tr>';
+                console.error('Error fetching data:', error);
+                document.getElementById('logsBody').innerHTML = '<tr><td colspan="3" style="text-align:center;color:#ef4444;">حدث خطأ في تحميل البيانات.</td></tr>';
             }
+        }
+
+        function renderIdeas(ideas) {
+            const tbody = document.getElementById('ideasBody');
+            tbody.innerHTML = '';
+            if (!ideas || ideas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="loading">لا توجد أفكار مسجلة بعد</td></tr>';
+                return;
+            }
+            ideas.forEach(idea => {
+                const date = new Date(idea.created_at).toLocaleString('ar-EG', {
+                    year: 'numeric', month: 'short', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                });
+                const isBad = idea.category === 'مضيعة للوقت';
+                const bg = isBad ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)';
+                const color = isBad ? '#f87171' : '#34d399';
+                const border = isBad ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)';
+                const tr = document.createElement('tr');
+                tr.innerHTML = \`
+                    <td dir="ltr" style="text-align:right; color: #cbd5e1;">\${date}</td>
+                    <td style="color:#e2e8f0;">\${idea.content}</td>
+                    <td><span class="badge" style="background:\${bg};color:\${color};border-color:\${border};">\${idea.category}</span></td>
+                \`;
+                tbody.appendChild(tr);
+            });
         }
 
         function renderTable(logs) {
