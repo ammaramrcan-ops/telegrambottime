@@ -105,7 +105,7 @@ ${systemContext}
           'Authorization': `Bearer ${nimApiKey}`
         },
         body: JSON.stringify({
-          model: 'meta/llama-3.1-8b-instruct',
+          model: 'google/gemma-3-27b-it',
           messages: [
             { role: 'system', content: systemPrompt },
             ...history
