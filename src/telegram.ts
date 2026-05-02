@@ -105,14 +105,13 @@ ${systemContext}
           'Authorization': `Bearer ${nimApiKey}`
         },
         body: JSON.stringify({
-          // gemma-3-27b-it is significantly faster than llama-3.1-8b-instruct on NIM
-          model: 'google/gemma-3-27b-it',
+          model: 'meta/llama-3.1-8b-instruct',
           messages: [
             { role: 'system', content: systemPrompt },
             ...history
           ],
           temperature: 0.1,
-          max_tokens: 300,
+          max_tokens: 512,
           stream: false
         }),
         signal: controller.signal

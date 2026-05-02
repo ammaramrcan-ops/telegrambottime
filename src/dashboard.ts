@@ -18,7 +18,7 @@ h1{font-size:2rem;background:linear-gradient(135deg,#818cf8,#a78bfa);-webkit-bac
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.7)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;}
 @media(max-width:768px){.grid2{grid-template-columns:1fr;}}
-.card{background:var(--card);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:18px;padding:1.5rem;transition:.3s;}
+.card{background:var(--card);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:18px;padding:1.5rem;transition:.3s;margin-bottom:1.5rem;}
 .card:hover{transform:translateY(-3px);box-shadow:0 20px 40px rgba(0,0,0,.3);}
 .card h2{font-size:1.15rem;color:#e2e8f0;margin-bottom:1.2rem;padding-bottom:.6rem;border-bottom:1px dashed var(--border);display:flex;align-items:center;gap:.5rem;}
 .chart-wrap{height:280px;display:flex;justify-content:center;}
@@ -26,7 +26,6 @@ table{width:100%;border-collapse:collapse;}
 th{color:var(--muted);font-size:.8rem;padding:.7rem 1rem;text-align:right;border-bottom:1px solid var(--border);}
 td{padding:.8rem 1rem;border-bottom:1px solid var(--border);font-size:.9rem;}
 tr:last-child td{border:none;}
-tbody tr{transition:.2s;}
 tbody tr:hover{background:rgba(255,255,255,.04);}
 .chip{display:inline-block;padding:.25rem .7rem;border-radius:10px;font-size:.8rem;font-weight:600;}
 .chip-blue{background:rgba(99,102,241,.2);color:#818cf8;border:1px solid rgba(99,102,241,.3);}
@@ -38,51 +37,72 @@ tbody tr:hover{background:rgba(255,255,255,.04);}
 .empty{text-align:center;padding:2rem;color:var(--muted);font-style:italic;}
 
 /* ── Tasks Section ── */
-.periods-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;margin-top:1rem;}
-.period-col{background:rgba(15,23,42,.5);border:1px solid var(--border);border-radius:14px;padding:1rem;}
-.period-col h3{font-size:.9rem;margin-bottom:.8rem;display:flex;align-items:center;gap:.4rem;}
-.period-col h3 .ptime{font-size:.75rem;color:var(--muted);font-weight:400;}
-.task-item{background:rgba(255,255,255,.05);border-radius:8px;padding:.6rem .8rem;margin-bottom:.5rem;display:flex;justify-content:space-between;align-items:center;gap:.4rem;}
-.task-item.done{opacity:.45;text-decoration:line-through;}
-.task-title{font-size:.85rem;flex:1;}
-.task-est{font-size:.75rem;color:var(--muted);}
-.task-actions{display:flex;gap:.3rem;}
-.btn-sm{background:none;border:none;cursor:pointer;padding:.2rem .4rem;border-radius:5px;font-size:.9rem;transition:.15s;}
-.btn-sm:hover{background:rgba(255,255,255,.1);}
-.add-task{display:flex;gap:.5rem;margin-top:.7rem;}
-.add-task input,.add-task select{flex:1;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:8px;padding:.45rem .7rem;color:var(--txt);font-family:'Cairo',sans-serif;font-size:.82rem;}
-.add-task input::placeholder{color:var(--muted);}
-.add-task button{background:var(--accent);border:none;color:#fff;border-radius:8px;padding:.45rem .9rem;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.82rem;transition:.2s;}
-.add-task button:hover{opacity:.85;}
-.period-active{border-color:rgba(99,102,241,.5);box-shadow:0 0 15px rgba(99,102,241,.15);}
+.task-view-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5rem;}
+.task-view-period{background:rgba(15,23,42,0.4);border:1px solid var(--border);border-radius:16px;padding:1.2rem;}
+.task-view-period h3{font-size:1rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;}
+.task-list-item{display:flex;align-items:center;gap:.8rem;padding:.7rem;background:rgba(255,255,255,0.03);border-radius:10px;margin-bottom:.6rem;transition:.2s;}
+.task-list-item:hover{background:rgba(255,255,255,0.06);}
+.task-list-item.done{opacity:0.6;}
+.task-list-item.done .title{text-decoration:line-through;color:var(--muted);}
+.checkbox{width:20px;height:20px;border-radius:6px;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+.checkbox.checked{background:var(--accent);color:white;font-size:12px;}
+.title{flex:1;font-size:.95rem;}
+.time-label{font-size:.7rem;color:var(--muted);background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;}
+
+/* ── Manage Tasks ── */
+.manage-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem;}
+.manage-col{background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:14px;padding:1rem;}
+.add-task-form{margin-top:1rem;display:flex;flex-direction:column;gap:.5rem;}
+.add-task-form input{background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;padding:.5rem;color:var(--txt);font-family:'Cairo';font-size:.85rem;}
+.add-task-form button{background:var(--accent);border:none;color:white;padding:.5rem;border-radius:8px;cursor:pointer;font-family:'Cairo';}
 
 /* ── Tabs ── */
 .tabs{display:flex;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap;}
-.tab{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:10px;padding:.5rem 1.2rem;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.9rem;color:var(--muted);transition:.2s;}
+.tab{background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:10px;padding:.5rem 1.2rem;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.9rem;color:var(--muted);transition:.2s;}
 .tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .section{display:none;}.section.show{display:block;}
 
-/* ── Archive ── */
-.archive-day{margin-bottom:1rem;}
-.archive-day-header{font-size:.85rem;color:var(--muted);margin-bottom:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border);}
+.btn-sm{background:none;border:none;cursor:pointer;padding:.2rem .4rem;border-radius:5px;font-size:.9rem;transition:.15s;}
+.btn-sm:hover{background:rgba(255,255,255,.1);}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header>
-  <h1>🚀 لوحة الإنتاجية</h1>
+  <h1>🚀 بوظة الإنتاجية</h1>
   <div class="badge"><div class="dot"></div> البوت نشط ومتصل</div>
 </header>
 
 <div class="tabs">
-  <button class="tab active" onclick="showTab('today')">📊 اليوم</button>
-  <button class="tab" onclick="showTab('tasks')">📋 المهام</button>
+  <button class="tab active" onclick="showTab('status')">🏠 المهام الحالية</button>
+  <button class="tab" onclick="showTab('manage')">⚙️ إدارة المهام</button>
+  <button class="tab" onclick="showTab('stats')">📊 الإحصائيات</button>
   <button class="tab" onclick="showTab('ideas')">💡 الأفكار</button>
   <button class="tab" onclick="showTab('archive')">🗂️ الأرشيف</button>
 </div>
 
-<!-- TODAY -->
-<div id="tab-today" class="section show">
+<!-- STATUS (HOME) -->
+<div id="tab-status" class="section show">
+  <div class="card">
+    <h2>🏠 مهام اليوم وحالتها التنفيذية</h2>
+    <div id="statusGrid" class="task-view-grid">
+      <div class="empty">جاري تحميل المهام...</div>
+    </div>
+  </div>
+</div>
+
+<!-- MANAGE TASKS -->
+<div id="tab-manage" class="section">
+  <div class="card">
+    <h2>⚙️ إضافة وإدارة المهام للفترات</h2>
+    <div id="manageGrid" class="manage-grid">
+      <div class="empty">جاري التحميل...</div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div id="tab-stats" class="section">
   <div class="grid2">
     <div class="card">
       <h2>📈 توزيع الأنشطة</h2>
@@ -96,16 +116,6 @@ tbody tr:hover{background:rgba(255,255,255,.04);}
           <tbody id="logsBody"><tr><td colspan="4" class="empty">جاري التحميل...</td></tr></tbody>
         </table>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- TASKS -->
-<div id="tab-tasks" class="section">
-  <div class="card">
-    <h2>📋 مهام اليوم — مقسّمة حسب الفترات</h2>
-    <div class="periods-grid" id="periodsGrid">
-      <div class="empty" style="grid-column:1/-1">جاري التحميل...</div>
     </div>
   </div>
 </div>
@@ -131,7 +141,7 @@ tbody tr:hover{background:rgba(255,255,255,.04);}
   </div>
 </div>
 
-</div><!-- /wrap -->
+</div>
 
 <script>
 const PERIODS = [
@@ -142,16 +152,6 @@ const PERIODS = [
   {key:'isha_fajr',   label:'العشاء → الفجر',  time:'20:15 – 4:30', chipClass:'chip-pink'},
 ];
 
-function getCurrentPeriodKey(){
-  const now=new Date();
-  const h=now.getHours(), m=now.getMinutes(), t=h*60+m;
-  if(t>=4*60+30 && t<12*60) return 'fajr_dhuhr';
-  if(t>=12*60   && t<15*60+30) return 'dhuhr_asr';
-  if(t>=15*60+30&& t<18*60+45) return 'asr_maghrib';
-  if(t>=18*60+45&& t<20*60+15) return 'maghrib_isha';
-  return 'isha_fajr';
-}
-
 function showTab(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('show'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -161,6 +161,78 @@ function showTab(name){
 
 function fmtDate(iso){
   return new Date(iso).toLocaleString('ar-EG',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+
+// ── Tasks ──
+let allTasks=[];
+async function loadTasks(){
+  const res=await fetch('/api/tasks');
+  allTasks=await res.json();
+  renderStatus();
+  renderManage();
+}
+
+function renderStatus(){
+  const grid = document.getElementById('statusGrid');
+  grid.innerHTML = PERIODS.map(p => {
+    const tasks = allTasks.filter(t => t.period === p.key);
+    if(tasks.length === 0) return '';
+    return \`
+    <div class="task-view-period">
+      <h3><span class="chip \${p.chipClass}">\${p.label}</span> <span class="time-label">\${p.time}</span></h3>
+      \${tasks.map(t => \`
+        <div class="task-list-item \${t.is_done?'done':''}">
+          <div class="checkbox \${t.is_done?'checked':''}" onclick="doneTask(\${t.id})">\${t.is_done?'✓':''}</div>
+          <span class="title">\${t.title} \${t.estimated_hours?'<small>('+t.estimated_hours+'س)</small>':''}</span>
+        </div>
+      \`).join('')}
+    </div>\`;
+  }).join('') || '<div class="empty">لا توجد مهام مسجلة لهذا اليوم. اذهب لصفحة الإدارة لإضافة مهام.</div>';
+}
+
+function renderManage(){
+  const grid = document.getElementById('manageGrid');
+  grid.innerHTML = PERIODS.map(p => {
+    const tasks = allTasks.filter(t => t.period === p.key);
+    return \`
+    <div class="manage-col">
+      <h3>\${p.label}</h3>
+      <div class="task-manage-list">
+        \${tasks.map(t => \`
+          <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+            <span>\${t.title}</span>
+            <button class="btn-sm" onclick="delTask(\${t.id})">🗑️</button>
+          </div>
+        \`).join('')}
+      </div>
+      <div class="add-task-form">
+        <input id="inp-\${p.key}" placeholder="عنوان المهمة..." type="text">
+        <input id="hrs-\${p.key}" placeholder="الساعات" type="number" step="0.5">
+        <button onclick="addTask('\${p.key}')">إضافة مهمة +</button>
+      </div>
+    </div>\`;
+  }).join('');
+}
+
+async function addTask(periodKey){
+  const inp=document.getElementById('inp-'+periodKey);
+  const hrs=document.getElementById('hrs-'+periodKey);
+  if(!inp.value.trim()) return;
+  const body={title:inp.value.trim(),period:periodKey};
+  if(hrs.value) body.estimated_hours=parseFloat(hrs.value);
+  await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  await loadTasks();
+}
+
+async function doneTask(id){
+  await fetch('/api/tasks/'+id+'/done',{method:'PATCH'});
+  await loadTasks();
+}
+
+async function delTask(id){
+  if(!confirm('حذف المهمة؟')) return;
+  await fetch('/api/tasks/'+id,{method:'DELETE'});
+  await loadTasks();
 }
 
 // ── Logs + Chart ──
@@ -178,139 +250,50 @@ async function loadLogs(){
       <td><button class="btn-sm" onclick="delLogEntry(\${l.id})" title="حذف">🗑️</button></td>
     </tr>\`).join('');
 
-  // Chart
   const totals={};
   logs.forEach(l=>{ totals[l.activity]=(totals[l.activity]||0)+Number(l.duration_hours); });
   const ctx=document.getElementById('activityChart').getContext('2d');
   if(chartInst) chartInst.destroy();
-  Chart.defaults.color='#94a3b8'; Chart.defaults.font.family='Cairo';
   chartInst=new Chart(ctx,{
     type:'doughnut',
     data:{
       labels:Object.keys(totals),
-      datasets:[{data:Object.values(totals),
-        backgroundColor:['#6366f1','#8b5cf6','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4','#84cc16'],
-        borderWidth:0,hoverOffset:8}]
+      datasets:[{data:Object.values(totals),backgroundColor:['#6366f1','#8b5cf6','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4','#84cc16'],borderWidth:0}]
     },
-    options:{responsive:true,maintainAspectRatio:false,cutout:'70%',
-      plugins:{legend:{position:'right',labels:{font:{size:13,family:'Cairo'},color:'#e2e8f0',padding:16}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{family:'Cairo'},color:'#e2e8f0'}}}}
   });
 }
 
-// ── Tasks ──
-let allTasks=[];
-async function loadTasks(){
-  const res=await fetch('/api/tasks');
-  allTasks=await res.json();
-  renderPeriods();
-}
-
-function renderPeriods(){
-  const current=getCurrentPeriodKey();
-  const grid=document.getElementById('periodsGrid');
-  grid.innerHTML=PERIODS.map(p=>{
-    const tasks=allTasks.filter(t=>t.period===p.key);
-    const isActive=p.key===current;
-    return \`
-    <div class="period-col \${isActive?'period-active':''}">
-      <h3>
-        <span class="chip \${p.chipClass}">\${isActive?'▶ ':''}\${p.label}</span>
-        <span class="ptime">\${p.time}</span>
-      </h3>
-      \${tasks.map(t=>\`
-        <div class="task-item \${t.is_done?'done':''}" id="task-\${t.id}">
-          <span class="task-title">\${t.title}</span>
-          \${t.estimated_hours?'<span class="task-est">'+t.estimated_hours+'س</span>':''}
-          <span class="task-actions">
-            \${!t.is_done?'<button class="btn-sm" onclick="doneTask('+t.id+')" title="تم">✅</button>':''}
-            <button class="btn-sm" onclick="delTask('+t.id+')" title="حذف">🗑️</button>
-          </span>
-        </div>\`).join('')}
-      <div class="add-task">
-        <input id="inp-\${p.key}" placeholder="مهمة جديدة..." type="text" onkeydown="if(event.key==='Enter')addTask('\${p.key}')">
-        <input id="hrs-\${p.key}" placeholder="ساعات" type="number" min="0.1" step="0.1" style="max-width:70px">
-        <button onclick="addTask('\${p.key}')">+</button>
-      </div>
-    </div>\`;
-  }).join('');
-}
-
 async function delLogEntry(id){
-  if(!confirm('حذف هذا النشاط من السجل؟')) return;
+  if(!confirm('حذف النشاط؟')) return;
   await fetch('/api/logs/'+id,{method:'DELETE'});
   await loadLogs();
 }
 
-async function addTask(periodKey){
-  const inp=document.getElementById('inp-'+periodKey);
-  const hrs=document.getElementById('hrs-'+periodKey);
-  const title=inp.value.trim();
-  if(!title) return;
-  const body={title,period:periodKey};
-  if(hrs.value) body.estimated_hours=parseFloat(hrs.value);
-  await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  inp.value=''; hrs.value='';
-  await loadTasks();
-}
-
-async function doneTask(id){
-  await fetch('/api/tasks/'+id+'/done',{method:'PATCH'});
-  await loadTasks();
-}
-
-async function delTask(id){
-  if(!confirm('حذف المهمة؟')) return;
-  await fetch('/api/tasks/'+id,{method:'DELETE'});
-  await loadTasks();
-}
-
-// ── Ideas ──
+// ── Ideas & Archive ──
 async function loadIdeas(){
   const res=await fetch('/api/ideas');
   const ideas=await res.json();
   const tbody=document.getElementById('ideasBody');
-  if(!ideas||ideas.length===0){tbody.innerHTML='<tr><td colspan="3" class="empty">لا توجد أفكار</td></tr>';return;}
-  tbody.innerHTML=ideas.map(i=>{
-    const bad=i.category==='مضيعة للوقت';
-    return \`<tr>
-      <td style="color:#cbd5e1;font-size:.8rem" dir="ltr">\${fmtDate(i.created_at)}</td>
-      <td style="color:#e2e8f0">\${i.content}</td>
-      <td><span class="chip \${bad?'chip-red':'chip-green'}">\${i.category}</span></td>
-    </tr>\`;
-  }).join('');
+  tbody.innerHTML=ideas.map(i=>\`<tr><td>\${fmtDate(i.created_at)}</td><td>\${i.content}</td><td>\${i.category}</td></tr>\`).join('');
 }
 
-// ── Archive ──
 async function loadArchive(){
   const res=await fetch('/api/archive');
   const data=await res.json();
   const el=document.getElementById('archiveBody');
-  if(!data||data.length===0){el.innerHTML='<div class="empty">لا يوجد أرشيف بعد</div>';return;}
+  if(!data||data.length===0){el.innerHTML='<div class="empty">لا يوجد أرشيف</div>';return;}
   const byDay={};
   data.forEach(r=>{ (byDay[r.log_date]=byDay[r.log_date]||[]).push(r); });
   el.innerHTML=Object.entries(byDay).map(([date,rows])=>\`
     <div class="archive-day">
-      <div class="archive-day-header">📅 \${date} — \${rows.reduce((s,r)=>s+Number(r.duration_hours),0).toFixed(2)} ساعة إجمالية</div>
-      <table>
-        <thead><tr><th>النشاط</th><th>المدة (س)</th><th>التوقيت</th></tr></thead>
-        <tbody>
-          \${rows.map(r=>\`<tr>
-            <td><span class="chip chip-blue">\${r.activity}</span></td>
-            <td style="color:var(--green);font-weight:700">\${Number(r.duration_hours).toFixed(2)}</td>
-            <td style="color:#cbd5e1;font-size:.8rem" dir="ltr">\${r.logged_at?fmtDate(r.logged_at):''}</td>
-          </tr>\`).join('')}
-        </tbody>
-      </table>
+      <div style="border-bottom:1px solid var(--border);padding:.5rem 0;color:var(--muted)">📅 \${date}</div>
+      <table>\${rows.map(r=>\`<tr><td>\${r.activity}</td><td>\${Number(r.duration_hours).toFixed(2)}س</td></tr>\`).join('')}</table>
     </div>\`).join('');
 }
 
-// ── Init ──
-loadLogs();
-loadTasks();
-loadIdeas();
-loadArchive();
-setInterval(loadLogs,  60000);
-setInterval(loadTasks, 60000);
+loadLogs(); loadTasks(); loadIdeas(); loadArchive();
+setInterval(()=>{ loadLogs(); loadTasks(); }, 60000);
 </script>
 </body>
 </html>`;
