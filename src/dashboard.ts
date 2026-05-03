@@ -336,12 +336,11 @@ function renderTimeline(logs) {
     const left = (startMins / 1440) * 100;
     const width = (durationMins / 1440) * 100;
 
-    return `
-      <div class="timeline-item" 
-           style="left: ${left}%; width: ${width}%; background: ${getColor(name)};"
-           onmouseover="showTooltip(event, '${name}', '${Math.round(durationMins)} دقيقة', '${formatClock(start)} - ${formatClock(end)}')"
-           onmouseout="hideTooltip()">
-      </div>`;
+    return '<div class="timeline-item" ' +
+           'style="left: ' + left + '%; width: ' + width + '%; background: ' + getColor(name) + ';" ' +
+           'onmouseover="showTooltip(event, \'' + name + '\', \'' + Math.round(durationMins) + ' دقيقة\', \'' + formatClock(start) + ' - ' + formatClock(end) + '\')" ' +
+           'onmouseout="hideTooltip()">' +
+           '</div>';
   }).join('');
 
   container.innerHTML = itemsHtml;
@@ -350,17 +349,16 @@ function renderTimeline(logs) {
   const wakeMins = wakeHours * 60;
   const progress = Math.min((totalMins / wakeMins) * 100, 100);
 
-  summary.innerHTML = `
-    <div>
-      <div style="font-size:0.9rem; color:var(--muted)">📊 إحصائية سريعة</div>
-      <div style="font-size:1.1rem; font-weight:bold">${logs.length} أنشطة | ${Math.floor(totalMins/60)} ساعة ${Math.round(totalMins%60)} دقيقة</div>
-    </div>
-    <div>
-      <div style="font-size:0.9rem; color:var(--muted)">⚡ نسبة الإنجاز من ساعات اليقظة (${wakeHours}س)</div>
-      <div class="progress-container"><div class="progress-bar" style="width: ${progress}%"></div></div>
-      <div style="font-size:0.75rem; text-align:left; margin-top:4px">${Math.round(progress)}%</div>
-    </div>
-  `;
+  summary.innerHTML = 
+    '<div>' +
+      '<div style="font-size:0.9rem; color:var(--muted)">📊 إحصائية سريعة</div>' +
+      '<div style="font-size:1.1rem; font-weight:bold">' + logs.length + ' أنشطة | ' + Math.floor(totalMins/60) + ' ساعة ' + Math.round(totalMins%60) + ' دقيقة</div>' +
+    '</div>' +
+    '<div>' +
+      '<div style="font-size:0.9rem; color:var(--muted)">⚡ نسبة الإنجاز من ساعات اليقظة (' + wakeHours + 'س)</div>' +
+      '<div class="progress-container"><div class="progress-bar" style="width: ' + progress + '%"></div></div>' +
+      '<div style="font-size:0.75rem; text-align:left; margin-top:4px">' + Math.round(progress) + '%</div>' +
+    '</div>';
 }
 
 function formatClock(date) {
@@ -369,7 +367,7 @@ function formatClock(date) {
 
 function showTooltip(e, name, dur, time) {
   const tt = document.getElementById('timelineTooltip');
-  tt.innerHTML = `<strong>${name}</strong><br>⏱️ ${dur}<br>🕒 ${time}`;
+  tt.innerHTML = '<strong>' + name + '</strong><br>⏱️ ' + dur + '<br>🕒 ' + time;
   tt.style.display = 'block';
   tt.style.left = (e.pageX + 10) + 'px';
   tt.style.top = (e.pageY + 10) + 'px';
@@ -390,7 +388,7 @@ async function loadIdeas(){
   const res=await fetch('/api/ideas');
   const ideas=await res.json();
   const tbody=document.getElementById('ideasBody');
-  tbody.innerHTML=ideas.map(i=>\`<tr><td>\${fmtDate(i.created_at)}</td><td>\${i.content}</td><td>\${i.category}</td></tr>\`).join('');
+  tbody.innerHTML=ideas.map(i=> '<tr><td>' + fmtDate(i.created_at) + '</td><td>' + i.content + '</td><td>' + i.category + '</td></tr>').join('');
 }
 
 async function loadArchive(){
@@ -400,11 +398,11 @@ async function loadArchive(){
   if(!data||data.length===0){el.innerHTML='<div class="empty">لا يوجد أرشيف</div>';return;}
   const byDay={};
   data.forEach(r=>{ (byDay[r.log_date]=byDay[r.log_date]||[]).push(r); });
-  el.innerHTML=Object.entries(byDay).map(([date,rows])=>\`
-    <div class="archive-day">
-      <div style="border-bottom:1px solid var(--border);padding:.5rem 0;color:var(--muted)">📅 \${date}</div>
-      <table>\${rows.map(r=>\`<tr><td>\${r.activity}</td><td>\${Number(r.duration_hours).toFixed(2)}س</td></tr>\`).join('')}</table>
-    </div>\`).join('');
+  el.innerHTML=Object.entries(byDay).map(([date,rows])=> 
+    '<div class="archive-day">' +
+      '<div style="border-bottom:1px solid var(--border);padding:.5rem 0;color:var(--muted)">📅 ' + date + '</div>' +
+      '<table>' + rows.map(r=> '<tr><td>' + r.activity + '</td><td>' + Number(r.duration_hours).toFixed(2) + 'س</td></tr>').join('') + '</table>' +
+    '</div>').join('');
 }
 
 loadLogs(); loadTasks(); loadIdeas(); loadArchive();
