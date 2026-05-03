@@ -64,6 +64,20 @@ tbody tr:hover{background:rgba(255,255,255,.04);}
 
 .btn-sm{background:none;border:none;cursor:pointer;padding:.2rem .4rem;border-radius:5px;font-size:.9rem;transition:.15s;}
 .btn-sm:hover{background:rgba(255,255,255,.1);}
+
+/* ── Timeline ── */
+.timeline-card{overflow:visible;}
+.timeline-container{position:relative;width:100%;height:100px;background:rgba(255,255,255,0.03);border-radius:12px;margin:2rem 0 3rem;border:1px solid var(--border);padding:0 5px;}
+.timeline-hours{display:flex;justify-content:space-between;position:absolute;bottom:-25px;width:100%;left:0;padding:0 5px;}
+.timeline-hours span{font-size:0.7rem;color:var(--muted);}
+.timeline-item{position:absolute;top:15px;height:70px;border-radius:6px;cursor:pointer;transition:0.2s;border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.timeline-item:hover{transform:scaleY(1.1);z-index:10;box-shadow:0 0 20px rgba(0,0,0,0.5);}
+.prayer-line{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.15);z-index:2;pointer-events:none;}
+.prayer-line::after{content:attr(data-label);position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:0.65rem;color:var(--muted);white-space:nowrap;}
+.tl-tooltip{position:absolute;background:#1e293b;border:1px solid var(--accent);padding:0.6rem;border-radius:8px;font-size:0.8rem;z-index:100;pointer-events:none;display:none;box-shadow:0 10px 15px -3px rgba(0,0,0,0.5);color:white;min-width:150px;}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1rem;}
+.progress-container{background:rgba(255,255,255,0.05);height:12px;border-radius:6px;overflow:hidden;margin-top:0.5rem;border:1px solid var(--border);}
+.progress-bar{height:100%;background:linear-gradient(90deg, var(--accent), var(--green));width:0%;transition:1s ease-out;}
 </style>
 </head>
 <body>
@@ -83,6 +97,24 @@ tbody tr:hover{background:rgba(255,255,255,.04);}
 
 <!-- STATUS (HOME) -->
 <div id="tab-status" class="section show">
+  <!-- Visual Timeline -->
+  <div class="card timeline-card">
+    <h2>🕒 مخطط النشاطات الزمني (24 ساعة)</h2>
+    <div class="timeline-container" id="timelineContainer">
+      <div class="prayer-line" style="left: 18.75%" data-label="الفجر"></div>
+      <div class="prayer-line" style="left: 50%" data-label="الظهر"></div>
+      <div class="prayer-line" style="left: 64.58%" data-label="العصر"></div>
+      <div class="prayer-line" style="left: 78.12%" data-label="المغرب"></div>
+      <div class="prayer-line" style="left: 84.37%" data-label="العشاء"></div>
+      <div id="timelineItems"></div>
+      <div class="timeline-hours">
+        <span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>16:00</span><span>20:00</span><span>23:59</span>
+      </div>
+    </div>
+    <div id="timelineSummary" class="summary-grid"></div>
+    <div class="tl-tooltip" id="timelineTooltip"></div>
+  </div>
+
   <div class="card">
     <h2>🏠 مهام اليوم وحالتها التنفيذية</h2>
     <div id="statusGrid" class="task-view-grid">
@@ -262,6 +294,89 @@ async function loadLogs(){
     },
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{family:'Cairo'},color:'#e2e8f0'}}}}
   });
+
+  renderTimeline(logs);
+}
+
+function renderTimeline(logs) {
+  const container = document.getElementById('timelineItems');
+  const summary = document.getElementById('timelineSummary');
+  const tooltip = document.getElementById('timelineTooltip');
+  if (!logs) return;
+
+  const getColor = (name) => {
+    if (name.includes('صلاة')) return '#22c55e';
+    if (name.includes('أكل')) return '#f97316';
+    if (name.includes('حمام')) return '#38bdf8';
+    if (name.includes('تضييع')) return '#ef4444';
+    return '#8b5cf6';
+  };
+
+  let totalMins = 0;
+  const itemsHtml = logs.map(l => {
+    // Adapt to different field names if necessary
+    const name = l.activity || l.name || 'نشاط';
+    const durationMins = l.duration ? l.duration : (l.duration_hours ? l.duration_hours * 60 : 0);
+    
+    let start, end;
+    if (l.start_time && l.end_time) {
+      start = new Date(l.start_time);
+      end = new Date(l.end_time);
+    } else {
+      end = new Date(l.created_at);
+      start = new Date(end.getTime() - durationMins * 60000);
+    }
+
+    totalMins += durationMins;
+
+    const startOfToday = new Date(start);
+    startOfToday.setHours(0,0,0,0);
+    const startMins = (start.getTime() - startOfToday.getTime()) / 60000;
+    
+    const left = (startMins / 1440) * 100;
+    const width = (durationMins / 1440) * 100;
+
+    return `
+      <div class="timeline-item" 
+           style="left: ${left}%; width: ${width}%; background: ${getColor(name)};"
+           onmouseover="showTooltip(event, '${name}', '${Math.round(durationMins)} دقيقة', '${formatClock(start)} - ${formatClock(end)}')"
+           onmouseout="hideTooltip()">
+      </div>`;
+  }).join('');
+
+  container.innerHTML = itemsHtml;
+
+  const wakeHours = 18;
+  const wakeMins = wakeHours * 60;
+  const progress = Math.min((totalMins / wakeMins) * 100, 100);
+
+  summary.innerHTML = `
+    <div>
+      <div style="font-size:0.9rem; color:var(--muted)">📊 إحصائية سريعة</div>
+      <div style="font-size:1.1rem; font-weight:bold">${logs.length} أنشطة | ${Math.floor(totalMins/60)} ساعة ${Math.round(totalMins%60)} دقيقة</div>
+    </div>
+    <div>
+      <div style="font-size:0.9rem; color:var(--muted)">⚡ نسبة الإنجاز من ساعات اليقظة (${wakeHours}س)</div>
+      <div class="progress-container"><div class="progress-bar" style="width: ${progress}%"></div></div>
+      <div style="font-size:0.75rem; text-align:left; margin-top:4px">${Math.round(progress)}%</div>
+    </div>
+  `;
+}
+
+function formatClock(date) {
+  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function showTooltip(e, name, dur, time) {
+  const tt = document.getElementById('timelineTooltip');
+  tt.innerHTML = `<strong>${name}</strong><br>⏱️ ${dur}<br>🕒 ${time}`;
+  tt.style.display = 'block';
+  tt.style.left = (e.pageX + 10) + 'px';
+  tt.style.top = (e.pageY + 10) + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('timelineTooltip').style.display = 'none';
 }
 
 async function delLogEntry(id){

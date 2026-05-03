@@ -35,14 +35,6 @@ const PERIOD_NAMES_MAP: Record<string, string> = {
   isha_fajr: 'عشاء'
 };
 
-const PERIOD_NAMES_MAP: Record<string, string> = {
-  fajr_dhuhr: 'فجر',
-  dhuhr_asr: 'ظهر',
-  asr_maghrib: 'عصر',
-  maghrib_isha: 'مغرب',
-  isha_fajr: 'عشاء'
-};
-
 // ─── Global State ─────────────────────────────────────────────────────────────
 type ChatState = 
   | { type: 'waiting_gap'; start: Date; end: Date }
