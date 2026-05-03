@@ -27,6 +27,14 @@ function getCurrentPeriod(localHour: number, localMin: number): PeriodKey {
   return 'isha_fajr';
 }
 
+const PERIOD_NAMES_MAP: Record<string, string> = {
+  fajr_dhuhr: 'فجر',
+  dhuhr_asr: 'ظهر',
+  asr_maghrib: 'عصر',
+  maghrib_isha: 'مغرب',
+  isha_fajr: 'عشاء'
+};
+
 // ─── APIs ─────────────────────────────────────────────────────────────────────
 app.get('/', (c) => c.html(dashboardHtml));
 app.get('/dashboard', (c) => c.html(dashboardHtml));
@@ -132,6 +140,14 @@ ${tasksSummary}
       case 'log':
         if (result.activity && result.duration_hours) {
           await supabase.insertLog({ activity: result.activity, duration_hours: result.duration_hours });
+          
+          const durationStr = result.duration_hours < 1 
+            ? `${Math.round(result.duration_hours * 60)} دقيقة` 
+            : `${result.duration_hours} ساعة`;
+          
+          const confirmationMsg = `✅ تم تسجيل النشاط\n📌 ${result.activity}\n⏱️ المدة: ${durationStr}\n🕐 الفترة: ${PERIOD_NAMES_MAP[currentPeriod] || 'غير محددة'}`;
+          await telegram.sendMessage(chatId, confirmationMsg);
+          await supabase.saveMessage(chatId, 'assistant', confirmationMsg);
         }
         break;
       case 'start_timer':
@@ -141,7 +157,14 @@ ${tasksSummary}
         const stopped = await supabase.stopTimer(chatId);
         if (stopped) {
           await supabase.insertLog({ activity: stopped.timerType, duration_hours: stopped.durationHours });
-          await telegram.sendMessage(chatId, `✅ تم تسجيل "${stopped.timerType}" لمدة ${Math.round(stopped.durationHours * 60)} دقيقة.`);
+          
+          const durationStr = stopped.durationHours < 1 
+            ? `${Math.round(stopped.durationHours * 60)} دقيقة` 
+            : `${stopped.durationHours} ساعة`;
+          
+          const confirmationMsg = `✅ تم تسجيل النشاط\n📌 ${stopped.timerType}\n⏱️ المدة: ${durationStr}\n🕐 الفترة: ${PERIOD_NAMES_MAP[currentPeriod] || 'غير محددة'}`;
+          await telegram.sendMessage(chatId, confirmationMsg);
+          await supabase.saveMessage(chatId, 'assistant', confirmationMsg);
         }
         break;
       }

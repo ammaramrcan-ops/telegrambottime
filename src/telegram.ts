@@ -141,11 +141,11 @@ ${systemContext}
       };
     }
   } catch (e: any) {
-    if (e?.name === 'AbortError') {
+    if (e?.name === 'AbortError' || e?.message?.includes('abort')) {
       console.error('LLM request timed out after 25s');
-      return { action: 'reply', reply_text: '⏱️ انتهت مهلة الاتصال بالذكاء الاصطناعي. حاول مرة أخرى.' };
+      return { action: 'reply', reply_text: '⏳ انتهت مهلة الاتصال بالذكاء الاصطناعي، حاول مرة أخرى' };
     }
     console.error('Error calling NIM LLM:', e);
-    return { action: 'reply', reply_text: '⚠️ حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.' };
+    return { action: 'reply', reply_text: '❌ خطأ في الاتصال: ' + (e?.message || 'خطأ غير معروف') };
   }
 }
