@@ -209,16 +209,15 @@ function renderStatus(){
   grid.innerHTML = PERIODS.map(p => {
     const tasks = allTasks.filter(t => t.period === p.key);
     if(tasks.length === 0) return '';
-    return \`
-    <div class="task-view-period">
-      <h3><span class="chip \${p.chipClass}">\${p.label}</span> <span class="time-label">\${p.time}</span></h3>
-      \${tasks.map(t => \`
-        <div class="task-list-item \${t.is_done?'done':''}">
-          <div class="checkbox \${t.is_done?'checked':''}" onclick="doneTask(\${t.id})">\${t.is_done?'✓':''}</div>
-          <span class="title">\${t.title} \${t.estimated_hours?'<small>('+t.estimated_hours+'س)</small>':''}</span>
-        </div>
-      \`).join('')}
-    </div>\`;
+    return '<div class="task-view-period">' +
+      '<h3><span class="chip ' + p.chipClass + '">' + p.label + '</span> <span class="time-label">' + p.time + '</span></h3>' +
+      tasks.map(t => 
+        '<div class="task-list-item ' + (t.is_done?'done':'') + '">' +
+          '<div class="checkbox ' + (t.is_done?'checked':'') + '" onclick="doneTask(' + t.id + ')">' + (t.is_done?'✓':'') + '</div>' +
+          '<span class="title">' + t.title + ' ' + (t.estimated_hours?'<small>('+t.estimated_hours+'س)</small>':'') + '</span>' +
+        '</div>'
+      ).join('') +
+    '</div>';
   }).join('') || '<div class="empty">لا توجد مهام مسجلة لهذا اليوم. اذهب لصفحة الإدارة لإضافة مهام.</div>';
 }
 
@@ -226,23 +225,22 @@ function renderManage(){
   const grid = document.getElementById('manageGrid');
   grid.innerHTML = PERIODS.map(p => {
     const tasks = allTasks.filter(t => t.period === p.key);
-    return \`
-    <div class="manage-col">
-      <h3>\${p.label}</h3>
-      <div class="task-manage-list">
-        \${tasks.map(t => \`
-          <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
-            <span>\${t.title}</span>
-            <button class="btn-sm" onclick="delTask(\${t.id})">🗑️</button>
-          </div>
-        \`).join('')}
-      </div>
-      <div class="add-task-form">
-        <input id="inp-\${p.key}" placeholder="عنوان المهمة..." type="text">
-        <input id="hrs-\${p.key}" placeholder="الساعات" type="number" step="0.5">
-        <button onclick="addTask('\${p.key}')">إضافة مهمة +</button>
-      </div>
-    </div>\`;
+    return '<div class="manage-col">' +
+      '<h3>' + p.label + '</h3>' +
+      '<div class="task-manage-list">' +
+        tasks.map(t => 
+          '<div style="display:flex;justify-content:space-between;font-size:.85rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">' +
+            '<span>' + t.title + '</span>' +
+            '<button class="btn-sm" onclick="delTask(' + t.id + ')">🗑️</button>' +
+          '</div>'
+        ).join('') +
+      '</div>' +
+      '<div class="add-task-form">' +
+        '<input id="inp-' + p.key + '" placeholder="عنوان المهمة..." type="text">' +
+        '<input id="hrs-' + p.key + '" placeholder="الساعات" type="number" step="0.5">' +
+        '<button onclick="addTask(\'' + p.key + '\')">إضافة مهمة +</button>' +
+      '</div>' +
+    '</div>';
   }).join('');
 }
 
@@ -274,13 +272,13 @@ async function loadLogs(){
   const logs = await res.json();
   const tbody = document.getElementById('logsBody');
   if(!logs||logs.length===0){tbody.innerHTML='<tr><td colspan="4" class="empty">لا يوجد أنشطة مسجلة</td></tr>';return;}
-  tbody.innerHTML = logs.map(l=>\`
-    <tr>
-      <td style="color:#cbd5e1;font-size:.8rem" dir="ltr">\${fmtDate(l.created_at)}</td>
-      <td><span class="chip chip-blue">\${l.activity}</span></td>
-      <td style="color:var(--green);font-weight:700">\${Number(l.duration_hours).toFixed(2)}</td>
-      <td><button class="btn-sm" onclick="delLogEntry(\${l.id})" title="حذف">🗑️</button></td>
-    </tr>\`).join('');
+  tbody.innerHTML = logs.map(l=>
+    '<tr>' +
+      '<td style="color:#cbd5e1;font-size:.8rem" dir="ltr">' + fmtDate(l.created_at) + '</td>' +
+      '<td><span class="chip chip-blue">' + l.activity + '</span></td>' +
+      '<td style="color:var(--green);font-weight:700">' + Number(l.duration_hours).toFixed(2) + '</td>' +
+      '<td><button class="btn-sm" onclick="delLogEntry(' + l.id + ')" title="حذف">🗑️</button></td>' +
+    '</tr>').join('');
 
   const totals={};
   logs.forEach(l=>{ totals[l.activity]=(totals[l.activity]||0)+Number(l.duration_hours); });
