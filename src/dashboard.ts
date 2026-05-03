@@ -88,11 +88,11 @@ tbody tr:hover{background:rgba(255,255,255,.04);}
 </header>
 
 <div class="tabs">
-  <button class="tab active" onclick="showTab('status')">🏠 المهام الحالية</button>
-  <button class="tab" onclick="showTab('manage')">⚙️ إدارة المهام</button>
-  <button class="tab" onclick="showTab('stats')">📊 الإحصائيات</button>
-  <button class="tab" onclick="showTab('ideas')">💡 الأفكار</button>
-  <button class="tab" onclick="showTab('archive')">🗂️ الأرشيف</button>
+  <button class="tab active" onclick="showTab('status', event)">🏠 المهام الحالية</button>
+  <button class="tab" onclick="showTab('manage', event)">⚙️ إدارة المهام</button>
+  <button class="tab" onclick="showTab('stats', event)">📊 الإحصائيات</button>
+  <button class="tab" onclick="showTab('ideas', event)">💡 الأفكار</button>
+  <button class="tab" onclick="showTab('archive', event)">🗂️ الأرشيف</button>
 </div>
 
 <!-- STATUS (HOME) -->
@@ -100,7 +100,7 @@ tbody tr:hover{background:rgba(255,255,255,.04);}
   <!-- Visual Timeline -->
   <div class="card timeline-card">
     <h2>🕒 مخطط النشاطات الزمني (24 ساعة)</h2>
-    <div class="timeline-container" id="timelineContainer">
+    <div class="timeline-container" id="timelineContainer" style="direction: ltr;">
       <div class="prayer-line" style="left: 18.75%" data-label="الفجر"></div>
       <div class="prayer-line" style="left: 50%" data-label="الظهر"></div>
       <div class="prayer-line" style="left: 64.58%" data-label="العصر"></div>
@@ -176,6 +176,7 @@ tbody tr:hover{background:rgba(255,255,255,.04);}
 </div>
 
 <script>
+console.log('Script tag reached');
 const PERIODS = [
   {key:'fajr_dhuhr',  label:'الفجر → الظهر',   time:'4:30 – 12:00', chipClass:'chip-yellow'},
   {key:'dhuhr_asr',   label:'الظهر → العصر',   time:'12:00 – 15:30',chipClass:'chip-blue'},
@@ -184,11 +185,13 @@ const PERIODS = [
   {key:'isha_fajr',   label:'العشاء → الفجر',  time:'20:15 – 4:30', chipClass:'chip-pink'},
 ];
 
-function showTab(name){
+function showTab(name, ev){
+  console.log('Switching to tab:', name);
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('show'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('show');
-  event.target.classList.add('active');
+  const targetTab = document.getElementById('tab-'+name);
+  if (targetTab) targetTab.classList.add('show');
+  if(ev && ev.currentTarget) ev.currentTarget.classList.add('active');
 }
 
 function fmtDate(iso){
@@ -198,10 +201,14 @@ function fmtDate(iso){
 // ── Tasks ──
 let allTasks=[];
 async function loadTasks(){
-  const res=await fetch('/api/tasks');
-  allTasks=await res.json();
-  renderStatus();
-  renderManage();
+  console.log('Loading tasks...');
+  try {
+    const res=await fetch('/api/tasks');
+    allTasks=await res.json();
+    console.log('Tasks loaded:', allTasks.length);
+    renderStatus();
+    renderManage();
+  } catch(e) { console.error('Error loading tasks:', e); }
 }
 
 function renderStatus(){
@@ -212,9 +219,9 @@ function renderStatus(){
     return '<div class="task-view-period">' +
       '<h3><span class="chip ' + p.chipClass + '">' + p.label + '</span> <span class="time-label">' + p.time + '</span></h3>' +
       tasks.map(t => 
-        '<div class="task-list-item ' + (t.is_done?'done':'') + '">' +
-          '<div class="checkbox ' + (t.is_done?'checked':'') + '" onclick="doneTask(' + t.id + ')">' + (t.is_done?'✓':'') + '</div>' +
-          '<span class="title">' + t.title + ' ' + (t.estimated_hours?'<small>('+t.estimated_hours+'س)</small>':'') + '</span>' +
+        '<div class="task-list-item ' + (t.is_done ? 'done' : '') + '">' +
+          '<div class="checkbox ' + (t.is_done ? 'checked' : '') + '" onclick="doneTask(' + t.id + ')">' + (t.is_done ? '✓' : '') + '</div>' +
+          '<span class="title">' + t.title + ' ' + (t.estimated_hours ? '<small>(' + t.estimated_hours + 'س)</small>' : '') + '</span>' +
         '</div>'
       ).join('') +
     '</div>';
@@ -238,7 +245,7 @@ function renderManage(){
       '<div class="add-task-form">' +
         '<input id="inp-' + p.key + '" placeholder="عنوان المهمة..." type="text">' +
         '<input id="hrs-' + p.key + '" placeholder="الساعات" type="number" step="0.5">' +
-        '<button onclick="addTask(\'' + p.key + '\')">إضافة مهمة +</button>' +
+        '<button onclick="addTask(&apos;' + p.key + '&apos;)">إضافة مهمة +</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -268,8 +275,11 @@ async function delTask(id){
 // ── Logs + Chart ──
 let chartInst = null;
 async function loadLogs(){
-  const res = await fetch('/api/logs');
-  const logs = await res.json();
+  console.log('Loading logs...');
+  try {
+    const res = await fetch('/api/logs');
+    const logs = await res.json();
+    console.log('Logs loaded:', logs.length);
   const tbody = document.getElementById('logsBody');
   if(!logs||logs.length===0){tbody.innerHTML='<tr><td colspan="4" class="empty">لا يوجد أنشطة مسجلة</td></tr>';return;}
   tbody.innerHTML = logs.map(l=>
@@ -282,18 +292,23 @@ async function loadLogs(){
 
   const totals={};
   logs.forEach(l=>{ totals[l.activity]=(totals[l.activity]||0)+Number(l.duration_hours); });
-  const ctx=document.getElementById('activityChart').getContext('2d');
+  const ctx=document.getElementById('activityChart');
+  if(!ctx) return;
+  const ctx2d = ctx.getContext('2d');
   if(chartInst) chartInst.destroy();
-  chartInst=new Chart(ctx,{
-    type:'doughnut',
-    data:{
-      labels:Object.keys(totals),
-      datasets:[{data:Object.values(totals),backgroundColor:['#6366f1','#8b5cf6','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4','#84cc16'],borderWidth:0}]
-    },
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{family:'Cairo'},color:'#e2e8f0'}}}}
-  });
+  if (typeof Chart !== 'undefined') {
+    chartInst=new Chart(ctx2d,{
+      type:'doughnut',
+      data:{
+        labels:Object.keys(totals),
+        datasets:[{data:Object.values(totals),backgroundColor:['#6366f1','#8b5cf6','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4','#84cc16'],borderWidth:0}]
+      },
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{family:'Cairo'},color:'#e2e8f0'}}}}
+    });
+  }
 
   renderTimeline(logs);
+  } catch(e) { console.error('Error loading logs:', e); }
 }
 
 function renderTimeline(logs) {
@@ -334,9 +349,10 @@ function renderTimeline(logs) {
     const left = (startMins / 1440) * 100;
     const width = (durationMins / 1440) * 100;
 
+    const safeName = name.replace(/'/g, "&apos;");
     return '<div class="timeline-item" ' +
            'style="left: ' + left + '%; width: ' + width + '%; background: ' + getColor(name) + ';" ' +
-           'onmouseover="showTooltip(event, \'' + name + '\', \'' + Math.round(durationMins) + ' دقيقة\', \'' + formatClock(start) + ' - ' + formatClock(end) + '\')" ' +
+           'onmouseover="showTooltip(event, &apos;' + safeName + '&apos;, &apos;' + Math.round(durationMins) + ' دقيقة&apos;, &apos;' + formatClock(start) + ' - ' + formatClock(end) + '&apos;)" ' +
            'onmouseout="hideTooltip()">' +
            '</div>';
   }).join('');
@@ -403,8 +419,17 @@ async function loadArchive(){
     '</div>').join('');
 }
 
-loadLogs(); loadTasks(); loadIdeas(); loadArchive();
-setInterval(()=>{ loadLogs(); loadTasks(); }, 60000);
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM Content Loaded, initializing data...');
+  loadLogs();
+  loadTasks();
+  loadIdeas();
+  loadArchive();
+  setInterval(() => {
+    loadLogs();
+    loadTasks();
+  }, 60000);
+});
 </script>
 </body>
 </html>`;
