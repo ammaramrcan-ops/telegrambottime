@@ -26,6 +26,16 @@ export interface DayTask {
   reminder_sent?: boolean;
 }
 
+export interface PrayerStateRow {
+  prayer_key: string;
+  notified_15: boolean;
+  notified_5: boolean;
+  notified_time: boolean;
+  confirmed: boolean;
+  prayer_time?: string;
+  last_reminder?: string;
+}
+
 export class SupabaseClient {
   constructor(private url: string, private key: string) {}
 
@@ -268,5 +278,33 @@ export class SupabaseClient {
     if (!res.ok) { console.error(`Supabase Error (getHistory): ${await res.text()}`); return []; }
     const data = await res.json() as {role: string, content: string}[];
     return data.reverse();
+  }
+
+  // ─── Prayer State ────────────────────────────────────────────────────
+  async getPrayerState(key: string): Promise<PrayerStateRow | null> {
+    const res = await fetch(`${this.url}/rest/v1/prayer_state?prayer_key=eq.${key}&select=*`, {
+      method: 'GET', headers: this.headers
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as PrayerStateRow[];
+    return data.length > 0 ? data[0] : null;
+  }
+
+  async upsertPrayerState(state: PrayerStateRow) {
+    const res = await fetch(`${this.url}/rest/v1/prayer_state`, {
+      method: 'POST',
+      headers: { ...this.headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(state)
+    });
+    if (!res.ok) console.error(`Supabase Error (upsertPrayerState): ${await res.text()}`);
+  }
+
+  async getLatestActivePrayer(): Promise<PrayerStateRow | null> {
+    const res = await fetch(`${this.url}/rest/v1/prayer_state?notified_time=eq.true&confirmed=eq.false&select=*&order=prayer_time.desc&limit=1`, {
+      method: 'GET', headers: this.headers
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as PrayerStateRow[];
+    return data.length > 0 ? data[0] : null;
   }
 }

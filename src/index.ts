@@ -44,13 +44,6 @@ type ChatState =
 const stateStore = new Map<number, ChatState>();
 
 // ─── Prayer System ────────────────────────────────────────────────────────────
-interface PrayerState {
-  notified: boolean;
-  confirmed: boolean;
-  startTime: Date;
-  lastReminder: Date;
-}
-const prayerState = new Map<string, PrayerState>();
 let prayerTimesCache: { date: string; timings: Record<string, string> } | null = null;
 
 const PRAYER_NAMES: Record<string, string> = {
@@ -149,30 +142,26 @@ app.post('/webhook', async (c) => {
     
     // ─── 0. Prayer Confirmation ───────────────────────────────────────────────
     if (cleanText === 'صليت') {
-      const today = new Date().toISOString().split('T')[0];
-      let lastPrayer: { name: string; key: string } | null = null;
-      
-      for (const name of Object.keys(PRAYER_NAMES)) {
-        const key = `${name}_${today}`;
-        const p = prayerState.get(key);
-        if (p && p.notified && !p.confirmed) {
-          lastPrayer = { name, key };
-        }
-      }
+      const activePrayer = await supabase.getLatestActivePrayer();
 
-      if (lastPrayer) {
-        const p = prayerState.get(lastPrayer.key)!;
-        p.confirmed = true;
-        const now = new Date();
-        const diffMs = now.getTime() - p.startTime.getTime();
-        const durationHours = diffMs / 3600000;
-        const arabicName = PRAYER_NAMES[lastPrayer.name];
+      if (activePrayer) {
+        activePrayer.confirmed = true;
+        await supabase.upsertPrayerState(activePrayer);
         
-        await supabase.insertLog({ activity: `صلاة ${arabicName} 🕌`, duration_hours: durationHours });
+        const now = new Date();
+        const pTime = new Date(activePrayer.prayer_time!);
+        const durationHours = (now.getTime() - pTime.getTime()) / 3600000;
+        
+        // Extract Arabic name from prayer_key (e.g., "Fajr_2024...")
+        const pName = activePrayer.prayer_key.split('_')[0];
+        const arabicName = PRAYER_NAMES[pName] || pName;
+        
+        const activityName = `صلاة ${arabicName} 🕌`;
+        await supabase.insertLog({ activity: activityName, duration_hours: durationHours });
         
         const localHour = (now.getUTCHours() + 3) % 24;
         const currentPeriod = getCurrentPeriod(localHour, now.getUTCMinutes());
-        const msg = getConfirmationMsg(`صلاة ${arabicName} 🕌`, durationHours, currentPeriod);
+        const msg = getConfirmationMsg(activityName, durationHours, currentPeriod);
         
         await telegram.sendMessage(chatId, msg);
         await supabase.saveMessage(chatId, 'assistant', msg);
@@ -464,31 +453,48 @@ export default {
         if (timings) {
           for (const [name, arabic] of Object.entries(PRAYER_NAMES)) {
             const [pStrH, pStrM] = timings[name].split(':').map(Number);
-            const prayerTime = new Date(localTime);
-            prayerTime.setUTCHours(pStrH, pStrM, 0, 0);
+            const prayerTimeUTC = new Date(localTime);
+            prayerTimeUTC.setUTCHours(pStrH, pStrM, 0, 0);
             
-            const diffMins = Math.round((prayerTime.getTime() - localTime.getTime()) / 60000);
+            const diffMins = Math.round((prayerTimeUTC.getTime() - localTime.getTime()) / 60000);
             const key = `${name}_${todayStr}`;
-            const state = prayerState.get(key) || { notified: false, confirmed: false, startTime: prayerTime, lastReminder: new Date(0) };
+            
+            let state = await supabase.getPrayerState(key);
+            if (!state) {
+              state = { 
+                prayer_key: key, notified_15: false, notified_5: false, 
+                notified_time: false, confirmed: false 
+              };
+            }
 
             if (!state.confirmed) {
-              if (diffMins === 15) {
+              let updated = false;
+              if (diffMins === 15 && !state.notified_15) {
                 await telegram.sendMessage(chatId, `🔔 تنبيه: صلاة ${arabic} بعد 15 دقيقة\nالوقت: ${timings[name]}\nاستعد! 🕌`);
-              } else if (diffMins === 5) {
+                state.notified_15 = true;
+                updated = true;
+              } else if (diffMins === 5 && !state.notified_5) {
                 await telegram.sendMessage(chatId, `⚡ صلاة ${arabic} بعد 5 دقائق!\nالوقت: ${timings[name]}`);
-              } else if (diffMins === 0) {
-                state.notified = true;
-                state.startTime = new Date(now); // Use UTC now for duration calculation later
-                state.lastReminder = new Date(now);
-                await telegram.sendMessage(chatId, `🕌 حان وقت صلاة ${arabic}!\nأرسل "صليت" بعد الانتهاء ✅`);
-              } else if (diffMins < 0 && state.notified) {
-                const sinceLastReminder = (now.getTime() - state.lastReminder.getTime()) / 60000;
-                if (sinceLastReminder >= 5) {
-                  state.lastReminder = new Date(now);
+                state.notified_5 = true;
+                updated = true;
+              } else if (diffMins <= 0 && !state.confirmed) {
+                if (!state.notified_time) {
+                  state.notified_time = true;
+                  state.prayer_time = now.toISOString();
+                  state.last_reminder = now.toISOString();
                   await telegram.sendMessage(chatId, `🕌 حان وقت صلاة ${arabic}!\nأرسل "صليت" بعد الانتهاء ✅`);
+                  updated = true;
+                } else {
+                  const lastRem = new Date(state.last_reminder!);
+                  const sinceLastRem = (now.getTime() - lastRem.getTime()) / 60000;
+                  if (sinceLastRem >= 5) {
+                    state.last_reminder = now.toISOString();
+                    await telegram.sendMessage(chatId, `🕌 حان وقت صلاة ${arabic}!\nأرسل "صليت" بعد الانتهاء ✅`);
+                    updated = true;
+                  }
                 }
               }
-              prayerState.set(key, state);
+              if (updated) await supabase.upsertPrayerState(state);
             }
           }
         }
