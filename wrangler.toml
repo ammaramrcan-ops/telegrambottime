@@ -13,5 +13,5 @@ main = "src/index.ts"
 # TELEGRAM_CHAT_ID
 
 [triggers]
-# Every 30 minutes — handles task reminders, 2-hour check-ins, and midnight archive
-crons = ["0,30 * * * *"]
+# Every minute — handles prayer alerts, task reminders, and check-ins
+crons = ["* * * * *"]

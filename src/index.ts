@@ -43,6 +43,41 @@ type ChatState =
 
 const stateStore = new Map<number, ChatState>();
 
+// ─── Prayer System ────────────────────────────────────────────────────────────
+interface PrayerState {
+  notified: boolean;
+  confirmed: boolean;
+  startTime: Date;
+  lastReminder: Date;
+}
+const prayerState = new Map<string, PrayerState>();
+let prayerTimesCache: { date: string; timings: Record<string, string> } | null = null;
+
+const PRAYER_NAMES: Record<string, string> = {
+  Fajr: 'فجر',
+  Dhuhr: 'ظهر',
+  Asr: 'عصر',
+  Maghrib: 'مغرب',
+  Isha: 'عشاء'
+};
+
+async function getPrayerTimes(): Promise<Record<string, string> | null> {
+  const today = new Date().toISOString().split('T')[0];
+  if (prayerTimesCache && prayerTimesCache.date === today) return prayerTimesCache.timings;
+
+  try {
+    const res = await fetch('https://api.aladhan.com/v1/timingsByCity?city=Ismailia&country=Egypt&method=5');
+    const data = await res.json() as any;
+    if (data && data.data && data.data.timings) {
+      prayerTimesCache = { date: today, timings: data.data.timings };
+      return data.data.timings;
+    }
+  } catch (e) {
+    console.error('Aladhan API error:', e);
+  }
+  return null;
+}
+
 function getConfirmationMsg(activity: string, durationHours: number, periodKey: string): string {
   const durationStr = durationHours < 1 
     ? `${Math.round(durationHours * 60)} دقيقة` 
@@ -111,6 +146,40 @@ app.post('/webhook', async (c) => {
     await supabase.saveMessage(chatId, 'user', text);
 
     const cleanText = text.trim().toLowerCase();
+    
+    // ─── 0. Prayer Confirmation ───────────────────────────────────────────────
+    if (cleanText === 'صليت') {
+      const today = new Date().toISOString().split('T')[0];
+      let lastPrayer: { name: string; key: string } | null = null;
+      
+      for (const name of Object.keys(PRAYER_NAMES)) {
+        const key = `${name}_${today}`;
+        const p = prayerState.get(key);
+        if (p && p.notified && !p.confirmed) {
+          lastPrayer = { name, key };
+        }
+      }
+
+      if (lastPrayer) {
+        const p = prayerState.get(lastPrayer.key)!;
+        p.confirmed = true;
+        const now = new Date();
+        const diffMs = now.getTime() - p.startTime.getTime();
+        const durationHours = diffMs / 3600000;
+        const arabicName = PRAYER_NAMES[lastPrayer.name];
+        
+        await supabase.insertLog({ activity: `صلاة ${arabicName} 🕌`, duration_hours: durationHours });
+        
+        const localHour = (now.getUTCHours() + 3) % 24;
+        const currentPeriod = getCurrentPeriod(localHour, now.getUTCMinutes());
+        const msg = getConfirmationMsg(`صلاة ${arabicName} 🕌`, durationHours, currentPeriod);
+        
+        await telegram.sendMessage(chatId, msg);
+        await supabase.saveMessage(chatId, 'assistant', msg);
+        return c.json({ status: 'ok' });
+      }
+    }
+
     const state = stateStore.get(chatId);
 
     // ─── 1. Handle States ─────────────────────────────────────────────────────
@@ -381,24 +450,60 @@ export default {
     ctx.waitUntil((async () => {
       try {
         const now = new Date();
-        const localHour = (now.getUTCHours() + 3) % 24;
-        const localMin  = now.getUTCMinutes();
+        const localTime = new Date(now.getTime() + 3 * 3600000);
+        const localHour = localTime.getUTCHours();
+        const localMin  = localTime.getUTCMinutes();
+        const todayStr = localTime.toISOString().split('T')[0];
         
         const supabase = new SupabaseClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
         const telegram = new TelegramClient(env.TELEGRAM_BOT_TOKEN);
         const chatId = parseInt(env.TELEGRAM_CHAT_ID);
 
-        // 1. Midnight Reset (00:00 - 00:30)
-        if (localHour === 0 && localMin < 30) {
-          const count = await supabase.archiveAndResetDay();
-          if (count > 0) await telegram.sendMessage(chatId, `🌙 انتهى اليوم! تم أرشفة ${count} نشاط بنجاح. سجل اليوم الجديد بدأ الآن 🌅`);
-          return;
+        // ─── 1. Prayer Alerts ─────────────────────────────────────────────────
+        const timings = await getPrayerTimes();
+        if (timings) {
+          for (const [name, arabic] of Object.entries(PRAYER_NAMES)) {
+            const [pStrH, pStrM] = timings[name].split(':').map(Number);
+            const prayerTime = new Date(localTime);
+            prayerTime.setUTCHours(pStrH, pStrM, 0, 0);
+            
+            const diffMins = Math.round((prayerTime.getTime() - localTime.getTime()) / 60000);
+            const key = `${name}_${todayStr}`;
+            const state = prayerState.get(key) || { notified: false, confirmed: false, startTime: prayerTime, lastReminder: new Date(0) };
+
+            if (!state.confirmed) {
+              if (diffMins === 15) {
+                await telegram.sendMessage(chatId, `🔔 تنبيه: صلاة ${arabic} بعد 15 دقيقة\nالوقت: ${timings[name]}\nاستعد! 🕌`);
+              } else if (diffMins === 5) {
+                await telegram.sendMessage(chatId, `⚡ صلاة ${arabic} بعد 5 دقائق!\nالوقت: ${timings[name]}`);
+              } else if (diffMins === 0) {
+                state.notified = true;
+                state.startTime = new Date(now); // Use UTC now for duration calculation later
+                state.lastReminder = new Date(now);
+                await telegram.sendMessage(chatId, `🕌 حان وقت صلاة ${arabic}!\nأرسل "صليت" بعد الانتهاء ✅`);
+              } else if (diffMins < 0 && state.notified) {
+                const sinceLastReminder = (now.getTime() - state.lastReminder.getTime()) / 60000;
+                if (sinceLastReminder >= 5) {
+                  state.lastReminder = new Date(now);
+                  await telegram.sendMessage(chatId, `🕌 حان وقت صلاة ${arabic}!\nأرسل "صليت" بعد الانتهاء ✅`);
+                }
+              }
+              prayerState.set(key, state);
+            }
+          }
         }
 
-        // 2. Periodic Follow-up (Check-ins & Period transitions)
-        // Check if a period just ended (e.g., at 12:00, 15:30, etc.)
+        // ─── 2. Existing Logic (Adjusted for 1-min cron) ───────────────────────
+        
+        // Midnight Reset (00:00)
+        if (localHour === 0 && localMin === 0) {
+          const count = await supabase.archiveAndResetDay();
+          if (count > 0) await telegram.sendMessage(chatId, `🌙 انتهى اليوم! تم أرشفة ${count} نشاط بنجاح. سجل اليوم الجديد بدأ الآن 🌅`);
+        }
+
+        // Periodic Follow-up (End of periods)
         for (const p of PERIODS) {
-          if (localHour === p.endH && localMin < 30) {
+          if (localHour === p.endH && localMin === p.endM) {
             const todayTasks = await supabase.getTodayTasks();
             const missedTasks = todayTasks.filter(t => t.period === p.key && !t.is_done);
             if (missedTasks.length > 0) {
@@ -408,8 +513,8 @@ export default {
           }
         }
 
-        // 3. Regular 2-hour Check-in
-        if (localHour >= 7 && localHour <= 23 && localHour % 2 === 0 && localMin < 30) {
+        // Regular 2-hour Check-in (Even hours, minute 0)
+        if (localHour >= 7 && localHour <= 23 && localHour % 2 === 0 && localMin === 0) {
           const keyboard = {
             reply_markup: {
               keyboard: [
