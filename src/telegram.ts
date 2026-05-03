@@ -105,13 +105,13 @@ ${systemContext}
           'Authorization': `Bearer ${nimApiKey}`
         },
         body: JSON.stringify({
-          model: 'meta/llama-3.1-70b-instruct',
+          model: 'meta/llama-3.1-8b-instruct',
           messages: [
             { role: 'system', content: systemPrompt },
-            ...history
+            ...history.slice(-8) // Use last 8 messages only for maximum speed
           ],
           temperature: 0.1,
-          max_tokens: 512,
+          max_tokens: 400,
           stream: false
         }),
         signal: controller.signal
