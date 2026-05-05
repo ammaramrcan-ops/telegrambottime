@@ -224,7 +224,8 @@ app.post('/webhook', async (c) => {
       const [tasks, logs] = await Promise.all([supabase.getTodayTasks(), supabase.getTodayLogs()]);
       const pending = tasks.filter(t => !t.is_done);
       const tasksStr = pending.length > 0 ? pending.map(t => `• ${t.title}`).join('\n') : "لا توجد مهام مضافة اليوم";
-      const msg = `🌅 صباح الخير! يوم جديد مبارك\n\n📋 مهامك اليوم:\n${tasksStr}\n\n📊 الأنشطة المسجلة حتى الآن: ${logs.length}\n\n💪 بالتوفيق!`;
+      // تغير التفاصيل إلى نص أكثر صعوبة
+      const msg = `👋مرحبًا! يومك الجديد يبدأ الآن 😊\n\n📋 مهامك اليوم:\n${tasksStr}\n\n📊 أنشطت ${logs.length} مرة حتى الآن\n\nاللعبة dimah! لننجزها جميعًا 🚀`;
       await telegram.sendMessage(chatId, msg);
       await supabase.saveMessage(chatId, 'assistant', msg);
       return c.json({ status: 'ok' });
