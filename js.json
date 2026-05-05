@@ -1,0 +1,12 @@
+{
+  "appName": "Telegram Time Tracker",
+  "env": "production",
+  "features": {
+    "timeTracking": true,
+    "prayerReminders": true,
+    "taskManagement": true,
+    "aiIntegration": true
+  },
+  "version": "1.0.0",
+  "lastUpdated": "2026-05-05"
+}
