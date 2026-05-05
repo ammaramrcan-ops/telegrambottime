@@ -32,18 +32,15 @@ export interface LLMResult {
 
 /**
  * Extracts the first valid JSON object from an LLM response string.
- * Handles cases where the model wraps the JSON in markdown code blocks.
+ * Handles markdown code blocks (```json/```) and trims whitespace.
  */
 function extractJson(raw: string): string {
-  // Remove markdown fences
-  let cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
-  // Find the first '{' and last '}' to extract the JSON object
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start !== -1 && end !== -1 && end > start) {
-    return cleaned.slice(start, end + 1);
-  }
-  return cleaned;
+  // إزالة كتbahات التفاصيل (دعم ```json و ```)
+  let cleaned = raw.replace(/```(?:json)?\s*|\s*```/gi, '').trim();
+  
+  // استخدام regex لجلب أول JSON صالح ( يدعم الأقواس المتداخلة )
+  const jsonMatch = cleaned.match(/\{(?:[^{}]|(?R))*\}/);
+  return jsonMatch ? jsonMatch[0] : cleaned;
 }
 
 export async function parseWithLLM(
