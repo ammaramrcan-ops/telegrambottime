@@ -60,7 +60,7 @@ async function getPrayerTimes(): Promise<Record<string, string> | null> {
 
   try {
     const res = await fetch('https://api.aladhan.com/v1/timingsByCity?city=Ismailia&country=Egypt&method=5');
-    const data = await res.json() as any;
+    const data = await res.json() as AladhanTimingsResponse;
     if (data && data.data && data.data.timings) {
       prayerTimesCache = { date: today, timings: data.data.timings };
       return data.data.timings;
