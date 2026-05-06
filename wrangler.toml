@@ -1,4 +1,4 @@
-name = "telegram-time-tracker"
+name = "telegrambottime"
 compatibility_date = "2024-04-05"
 main = "src/index.ts"
 
