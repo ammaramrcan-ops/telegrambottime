@@ -256,12 +256,43 @@ export class SupabaseClient {
   }
 
   async upsertPrayerState(state: PrayerStateRow) {
-    const res = await fetch(`${this.url}/rest/v1/prayer_state`, {
-      method: 'POST',
-      headers: { ...this.headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(state)
-    });
-    if (!res.ok) console.error(`Supabase Error (upsertPrayerState): ${await res.text()}`);
+    // جلب السجل الحالي إذا كان موجوداً
+    const existingRes = await fetch(
+      `${this.url}/rest/v1/prayer_state?prayer_key=eq.${state.prayer_key}&select=*`,
+      { method: 'GET', headers: this.headers }
+    );
+    const existing: PrayerStateRow[] = (await existingRes.json()) as any;
+
+    // إعداد البيانات التي سنرسلها
+    const payload: Partial<PrayerStateRow> = {
+      prayer_key: state.prayer_key,
+      notified_15: state.notified_15,
+      notified_5: state.notified_5,
+      notified_time: state.notified_time,
+      confirmed: state.confirmed,
+    };
+
+    // حفظ وقت الصلاة فقط إذا لم يكن محفوظاً مسبقاً
+    if (!existing[0]?.prayer_time && state.prayer_time) {
+      payload.prayer_time = state.prayer_time;
+    }
+
+    // إذا السجل غير موجود → INSERT
+    if (existing.length === 0) {
+      if (state.prayer_time) payload.prayer_time = state.prayer_time;
+      await fetch(`${this.url}/rest/v1/prayer_state`, {
+        method: 'POST',
+        headers: { ...this.headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      // UPDATE فقط للحقول المتغيرة
+      await fetch(`${this.url}/rest/v1/prayer_state?prayer_key=eq.${state.prayer_key}`, {
+        method: 'PATCH',
+        headers: { ...this.headers, 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload),
+      });
+    }
   }
 
   async getLatestActivePrayer(): Promise<PrayerStateRow | null> {

@@ -139,8 +139,43 @@ app.post('/webhook', async (c) => {
     await supabase.saveMessage(chatId, 'user', text);
 
     const cleanText = text.trim().toLowerCase();
-    
-    // ─── 0. Prayer Confirmation ───────────────────────────────────────────────
+
+    // ─── 0. معالجة تأكيد صلوات بصيغة "صليت الفجر" إلخ ───────────────────────
+    const prayerKeywordMap: Record<string, string> = {
+      'صليت الفجر'   : 'Fajr',
+      'صليت الظهر'   : 'Dhuhr',
+      'صليت العصر'   : 'Asr',
+      'صليت المغرب'  : 'Maghrib',
+      'صليت العشاء' : 'Isha',
+    };
+
+    if (prayerKeywordMap[cleanText]) {
+      const prayerEng = prayerKeywordMap[cleanText];
+      const arabicName = PRAYER_NAMES[prayerEng] || prayerEng;
+      const activity = `صلاة ${arabicName} 🕌`;
+
+      // سجل النشاط (المدة صفر لأن الوقت غير معروف)
+      await supabase.insertLog({ activity, duration_hours: 0 });
+
+      // ضع علامة التأكيد في جدول prayer_state
+      const todayStr = new Date().toISOString().split('T')[0];
+      const key = `${prayerEng}_${todayStr}`;
+      const state = await supabase.getPrayerState(key);
+      if (state) {
+        state.confirmed = true;
+        await supabase.upsertPrayerState(state);
+      }
+
+      // أرسل تأكيد للمستخدم
+      const now = new Date();
+      const period = getCurrentPeriod((now.getUTCHours() + 3) % 24, now.getUTCMinutes());
+      const msg = getConfirmationMsg(activity, 0, period);
+      await telegram.sendMessage(chatId, msg);
+      await supabase.saveMessage(chatId, 'assistant', msg);
+      return c.json({ status: 'ok' });
+    }
+
+    // ─── 0. Prayer Confirmation (generic "صليت") ───────────────────────────────
     if (cleanText === 'صليت') {
       const activePrayer = await supabase.getLatestActivePrayer();
 
@@ -453,6 +488,12 @@ export default {
         const timings = await getPrayerTimes();
         if (timings) {
           for (const [name, arabic] of Object.entries(PRAYER_NAMES)) {
+            // إذا الصلاة مؤكدة مسبقاً لا نرسل أي تذكير أو نحدّثها
+            const existingState = await supabase.getPrayerState(`${name}_${todayStr}`);
+            if (existingState?.confirmed) {
+              continue; // انتقل إلى الصلاة التالية
+            }
+
             const [pStrH, pStrM] = timings[name].split(':').map(Number);
             const prayerTimeUTC = new Date(localTime);
             prayerTimeUTC.setUTCHours(pStrH, pStrM, 0, 0);
@@ -468,34 +509,40 @@ export default {
               };
             }
 
-            if (!state.confirmed) {
-              let updated = false;
-              if (diffMins === 15 && !state.notified_15) {
-                await telegram.sendMessage(chatId, `🔔 تنبيه: صلاة ${arabic} بعد 15 دقيقة\nالوقت: ${timings[name]}\nاستعد! 🕌`);
-                state.notified_15 = true;
-                updated = true;
-              } else if (diffMins === 5 && !state.notified_5) {
-                await telegram.sendMessage(chatId, `⚡ صلاة ${arabic} بعد 5 دقائق!\nالوقت: ${timings[name]}`);
-                state.notified_5 = true;
-                updated = true;
-              } else if (diffMins <= 0 && !state.confirmed) {
-                if (!state.notified_time) {
-                  state.notified_time = true;
-                  state.prayer_time = now.toISOString();
+            // ---- تعديل حفظ وقت الصلاة ----
+            // حفظ وقت الصلاة فقط عند أول إشعار (first notified_time)
+            if (diffMins <= 0 && !state.confirmed) {
+              if (!state.notified_time) {
+                // أول مرة وصلنا للوقت الفعلي
+                state.notified_time = true;
+                state.prayer_time = now.toISOString();   // ← حفظ الوقت الآن
+                state.last_reminder = now.toISOString();
+                await telegram.sendMessage(chatId, `🕌 حان وقت صلاة ${arabic}!\nأرسل "صليت" بعد الانتهاء ✅`);
+                await supabase.upsertPrayerState(state);
+                continue;   // لا نتابع باقي الفحوصات لهذه الصلاة
+              } else {
+                // إذا تم الإشعار مسبقاً (already notified_time) فقط نرسل تذكير كل 5 دقائق
+                const lastRem = new Date(state.last_reminder!);
+                const sinceLastRem = (now.getTime() - lastRem.getTime()) / 60000;
+                if (sinceLastRem >= 5) {
                   state.last_reminder = now.toISOString();
                   await telegram.sendMessage(chatId, `🕌 حان وقت صلاة ${arabic}!\nأرسل "صليت" بعد الانتهاء ✅`);
-                  updated = true;
-                } else {
-                  const lastRem = new Date(state.last_reminder!);
-                  const sinceLastRem = (now.getTime() - lastRem.getTime()) / 60000;
-                  if (sinceLastRem >= 5) {
-                    state.last_reminder = now.toISOString();
-                    await telegram.sendMessage(chatId, `🕌 حان وقت صلاة ${arabic}!\nأرسل "صليت" بعد الانتهاء ✅`);
-                    updated = true;
-                  }
+                  await supabase.upsertPrayerState(state);
                 }
               }
-              if (updated) await supabase.upsertPrayerState(state);
+              // لا نرسل أي رسائل أخرى بعد هذا (تمت المعالجة)
+              continue;
+            }
+
+            // ---- باقي الإشعارات 15 و 5 دقائق ----
+            if (diffMins === 15 && !state.notified_15) {
+              await telegram.sendMessage(chatId, `🔔 تنبيه: صلاة ${arabic} بعد 15 دقيقة\nالوقت: ${timings[name]}\nاستعد! 🕌`);
+              state.notified_15 = true;
+              await supabase.upsertPrayerState(state);
+            } else if (diffMins === 5 && !state.notified_5) {
+              await telegram.sendMessage(chatId, `⚡ صلاة ${arabic} بعد 5 دقائق!\nالوقت: ${timings[name]}`);
+              state.notified_5 = true;
+              await supabase.upsertPrayerState(state);
             }
           }
         }
