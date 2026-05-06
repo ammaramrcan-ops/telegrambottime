@@ -6,6 +6,29 @@ export type Bindings = {
   TELEGRAM_CHAT_ID: string;
 };
 
+export interface AladhanTimingsResponse {
+  data: {
+    timings: Record<string, string>;
+    meta: {
+      city: string;
+      country: string;
+      latitude: number;
+      longitude: number;
+      timezone: string;
+      calculationMethod: string;
+      school: number;
+    };
+  };
+}
+
+export interface ArchiveEntry {
+  id?: number;
+  log_date: string;
+  activity: string;
+  duration_hours: number;
+  logged_at: string;
+}
+
 export interface TimeLog {
   id?: number;
   activity: string;
