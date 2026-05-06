@@ -6,11 +6,17 @@ export class TelegramClient {
         const body: Record<string, unknown> = { chat_id: chatId, text };
         if (parseMode) body['parse_mode'] = parseMode;
         if (replyMarkup) body['reply_markup'] = replyMarkup;
-        await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
+        // Network request with basic error handling to avoid uncaught rejections
+        try {
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+        } catch (e) {
+            console.error('Failed to send Telegram message:', e);
+            // Optionally rethrow or handle as needed; here we swallow to keep flow
+        }
     }
 }
 
@@ -28,7 +34,7 @@ export interface LLMResult {
 }
 
 function extractJson(raw: string): string {
-    let cleaned = raw.replace(/```(?:json)?\s*|\s*```/gi, '').trim();
+    const cleaned = raw.replace(/```(?:json)?\s*|\s*```/gi, '').trim();
     const start = cleaned.indexOf('{');
     if (start === -1) return cleaned;
     let count = 0;
